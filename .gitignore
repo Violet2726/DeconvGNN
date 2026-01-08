@@ -1,0 +1,11 @@
+*.ipynb
+output/*.pkl
+*.pyc
+*.jpg
+env/*
+*.xml
+*.iml
+
+
+data/*
+开题报告_文献翻译1.pdf
