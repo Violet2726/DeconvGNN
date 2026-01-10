@@ -4,8 +4,9 @@ import torch
 from torch import nn
 from torch_geometric.nn import Sequential
 from torch_geometric.utils import softmax as pyg_softmax
-from torch_scatter import scatter, scatter_max
-from torch_sparse import SparseTensor
+from torch_geometric.utils import scatter
+# from torch_sparse import SparseTensor
+from torch_geometric.typing import SparseTensor
 from timm.models.layers import trunc_normal_
 from typing import Literal
 from torch_geometric.nn import GCNConv, GATConv
@@ -251,9 +252,9 @@ class CKGConv(nn.Module):
                 if self.clamp is not None:
                     chunk_score = chunk_score.clamp(min=-self.clamp, max=self.clamp)
 
-                current_max = scatter_max(
-                    chunk_score, chunk_edges[0], dim_size=num_nodes
-                )[0]
+                current_max = scatter(
+                    chunk_score, chunk_edges[0], dim=0, dim_size=num_nodes, reduce='max'
+                )
                 max_values = torch.maximum(max_values, current_max)
 
                 # 及时清理
@@ -458,13 +459,8 @@ class GraphDataBuilder:
         num_edges = row.size(0)  # 原始边的数量
 
         # 构建稀疏邻接矩阵
-        adj = SparseTensor(
-            row=row,
-            col=col,
-            value=edge_attr.to(device),
-            sparse_sizes=(node_num, node_num),
-        )
-        dense = adj.to_dense()  # 转换为稠密矩阵
+        dense = torch.zeros((node_num, node_num), device=device)
+        dense[row, col] = edge_attr.to(device)
         dense_bool = (dense > 0).to(torch.bool)  # 原始边的布尔掩码
         deg = (dense > 0).sum(dim=1, keepdim=True)  # 节点度数
         rw = dense / (deg.view(-1, 1) + 1e-8)  # 归一化的随机游走矩阵

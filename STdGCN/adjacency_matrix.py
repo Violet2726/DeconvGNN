@@ -3,7 +3,8 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 import scipy.sparse as sp
-from sklearn.neighbors import KDTree, DistanceMetric
+from sklearn.neighbors import KDTree
+from sklearn.metrics import DistanceMetric
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.neighbors import NearestNeighbors
 

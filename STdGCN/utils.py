@@ -315,7 +315,7 @@ def data_integration(real,
         scanorama.integrate_scanpy([real, pseudo], dimred = dim)
         table1 = pd.DataFrame(real.obsm['X_scanorama'], index=real.obs.index.values)
         table2 = pd.DataFrame(pseudo.obsm['X_scanorama'], index=pseudo.obs.index.values)
-        table = table1.append(table2)
+        table = pd.concat([table1, table2])
         table.insert(0, 'ST_type', ['real']*real.shape[0]+['pseudo']*pseudo.shape[0])
         
     elif batch_removal_method == 'combat':

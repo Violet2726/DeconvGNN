@@ -277,7 +277,7 @@ def run_STdGCN(paths,
     test_len = ST_adata_filter.shape[0]
 
     table1 = ST_adata_filter_norm.obs.copy()
-    label1 = table1[pseudo_adata.obs.iloc[:,:-1].columns].append(pseudo_adata.obs.iloc[:,:-1])
+    label1 = pd.concat([table1[pseudo_adata.obs.iloc[:,:-1].columns], pseudo_adata.obs.iloc[:,:-1]])
     label1 = torch.tensor(label1.values)
 
     adjs = [adj_exp.float(), adj_sp.float()]
@@ -321,7 +321,7 @@ def run_STdGCN(paths,
     
     torch.save(trained_model, output_path+'/model_parameters')
     
-    pred_use = np.round_(output1.exp().detach()[:test_len], decimals=4)
+    pred_use = np.round(output1.exp().detach()[:test_len].cpu().numpy(), decimals=4)
     cell_type_list = cell_types
     coordinates = ST_adata_filter_norm.obs[['coor_X', 'coor_Y']]
     

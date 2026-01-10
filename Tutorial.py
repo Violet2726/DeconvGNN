@@ -73,9 +73,9 @@ marker_genes.tsv [可选]: 用于运行STdGCN的基因列表。每行一个基�
 ST_ground_truth.tsv [可选]: ST数据的真实标签。数据应转换为细胞类型比例。该文件应保存在"ST_path"中。
 '''
 paths = {
-    'sc_path': '../../autodl-fs/my/ExampleData/Simulated_STARmap',  # 单细胞参考数据路径
-    'ST_path': '../../autodl-fs/my/ExampleData/Simulated_STARmap',  # 空间转录组数据路径
-    'output_path': './output/stdgcn_gcnplus',  # 输出结果路径
+    'sc_path': './data/visium_combined',  # Visium + STARmap 单细胞参考
+    'ST_path': './data/visium_combined',  # 10x Visium 小鼠大脑 (2695个空间点)
+    'output_path': './output/visium_results',  # 输出结果路径
 }
 
 '''
@@ -117,7 +117,7 @@ find_marker_genes_paras = {
     'regress_out': False,  # 是否回归掉线粒体基因
     'PCA_components': 30,  # PCA降维的维度数
     'marker_gene_method': 'logreg',  # 标记基因选择方法（logreg或wilcoxon）
-    'top_gene_per_type': 100,  # 每种细胞类型选择的标记基因数量
+    'top_gene_per_type': 50,  # 每种细胞类型选择的标记基因数量（100）
     'filter_wilcoxon_marker_genes': True,  # 是否过滤wilcoxon方法选择的标记基因
     'pvals_adj_threshold': 0.10,  # 校正p值阈值
     'log_fold_change_threshold': 1,  # 对数倍数变化阈值
@@ -139,7 +139,7 @@ find_marker_genes_paras = {
 'max_cell_types_in_spot': [int]. 当'generation_method'='celltype'时，选择伪斑点中细胞类型的最大数量。
 '''
 pseudo_spot_simulation_paras = {
-    'spot_num': 30000,  # 生成的伪斑点数量
+    'spot_num': 10000,  # 生成的伪斑点数量（30000）
     'min_cell_num_in_spot': 8,  # 每个伪斑点中的最小细胞数
     'max_cell_num_in_spot': 12,  # 每个伪斑点中的最大细胞数
     'generation_method': 'celltype',  # 生成方法（cell或celltype）
@@ -315,7 +315,7 @@ results = run_STdGCN(
     use_marker_genes=True,  # 是否使用标记基因
     external_genes=False,  # 是否使用外部提供的基因列表
     find_marker_genes_paras=find_marker_genes_paras,
-    generate_new_pseudo_spots=False,  # 是否生成新的伪斑点
+    generate_new_pseudo_spots=True,  # 新数据集需要生成新的伪斑点
     pseudo_spot_simulation_paras=pseudo_spot_simulation_paras,
     data_normalization_paras=data_normalization_paras,
     integration_for_adj_paras=integration_for_adj_paras,
@@ -329,9 +329,7 @@ results = run_STdGCN(
     cell_type_distribution_plot=True,  # 是否生成细胞类型分布散点图
     n_jobs=1,  # 使用的CPU线程数
     GCN_device='GPU',  # 使用的设备（GPU或CPU）
-    seed=seed  # 随机种子
 )
 
 # 保存结果
 results.write_h5ad(paths['output_path'] + '\\results.h5ad')
-print(seed)  # 打印使用的随机种子
