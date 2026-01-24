@@ -73,9 +73,9 @@ marker_genes.tsv [可选]: 用于运行STdGCN的基因列表。每行一个基�
 ST_ground_truth.tsv [可选]: ST数据的真实标签。数据应转换为细胞类型比例。该文件应保存在"ST_path"中。
 '''
 paths = {
-    'sc_path': './data/visium_combined',  # Visium + STARmap 单细胞参考
-    'ST_path': './data/visium_combined',  # 10x Visium 小鼠大脑 (2695个空间点)
-    'output_path': './output/visium_results',  # 输出结果路径
+    'sc_path': './data/seqfish_tsv',  # Visium + STARmap 单细胞参考
+    'ST_path': './data/seqfish_tsv',  
+    'output_path': './output/seqfish_results',  # 输出结果路径
 }
 
 '''
@@ -325,8 +325,8 @@ results = run_STdGCN(
     pseudo_intra_exp_adj_paras=pseudo_intra_exp_adj_paras,
     integration_for_feature_paras=integration_for_feature_paras,
     GCN_paras=GCN_paras,
-    fraction_pie_plot=True,  # 是否生成饼图可视化
-    cell_type_distribution_plot=True,  # 是否生成细胞类型分布散点图
+    fraction_pie_plot=False,  # 是否生成饼图可视化
+    cell_type_distribution_plot=False,  # 是否生成细胞类型分布散点图
     n_jobs=1,  # 使用的CPU线程数
     GCN_device='GPU',  # 使用的设备（GPU或CPU）
 )

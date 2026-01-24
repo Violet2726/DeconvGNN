@@ -1,3 +1,4 @@
+import os
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -28,7 +29,7 @@ def run_STdGCN(paths,
                use_marker_genes = True,
                external_genes = False,
                generate_new_pseudo_spots = True,
-               fraction_pie_plot = False,
+               fraction_pie_plot = True,
                cell_type_distribution_plot = True,
                n_jobs = -1,
                GCN_device = 'CPU'
@@ -37,6 +38,9 @@ def run_STdGCN(paths,
     sc_path = paths['sc_path']
     ST_path = paths['ST_path']
     output_path = paths['output_path']
+    
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
     
     sc_adata = sc.read_csv(sc_path+"/sc_data.tsv", delimiter='\t')
     sc_label = pd.read_table(sc_path+"/sc_label.tsv", sep = '\t', header = 0, index_col = 0, encoding = "utf-8")
@@ -327,7 +331,13 @@ def run_STdGCN(paths,
     
     if fraction_pie_plot == True:
         plot_frac_results(pred_use, cell_type_list, coordinates, point_size=300, size_coefficient=0.0009, file_name=output_path+'/predict_results_pie_plot.jpg', if_show=False)
-        
+    
+    # 自动生成 Web 端交互式背景资源
+    try:
+        save_interactive_assets(pred_use, cell_type_list, coordinates, output_path)
+    except Exception as e:
+        print(f"Warning: Failed to generate interactive web assets: {e}")
+
     if cell_type_distribution_plot == True:
         plot_scatter_by_type(pred_use, cell_type_list, coordinates, point_size=300, file_path=output_path, if_show=False)
     
