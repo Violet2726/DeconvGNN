@@ -8,18 +8,18 @@ from visualization_app.utils import generate_clean_pie_chart
 
 # 数据集配置
 DATA_DIRS = {
-    # "Visium": {
-    #     "result_dir": "output/visium_results",
-    #     "data_dirs": ["data/visium_combined"]
-    # },
-    "seqFISH+": {
-        "result_dir": "output/seqfish_results",
-        "data_dirs": ["data/seqfish_tsv"]
+    "Visium": {
+        "result_dir": "output/visium_results",
+        "data_dirs": ["data/visium_combined"]
     },
-    "STARmap": {
-        "result_dir": "output/stdgcn_starmap",
-        "data_dirs": ["data/starmap_tsv"]
-    }
+    # "seqFISH+": {
+    #     "result_dir": "output/seqfish_results",
+    #     "data_dirs": ["data/seqfish_tsv"]
+    # },
+    # "STARmap": {
+    #     "result_dir": "output/stdgcn_starmap",
+    #     "data_dirs": ["data/starmap_tsv"]
+    # }
 }
 
 def load_data(result_dir, data_dirs_list):

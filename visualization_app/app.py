@@ -134,8 +134,7 @@ def main():
             "🔍 主要类型分布", 
             "📊 整体比例统计", 
             "🔥 单细胞类型热图", 
-            "📈 模型训练监控", 
-            "� 详细数据表"
+            "📈 详细数据表"
         ])
         
         # --- Tab 1: 空间组成分布 (原交互式饼图模式) ---
@@ -157,6 +156,10 @@ def main():
                     except:
                         continue
             
+            # 添加设置栏
+            with st.expander("🛠️ 设置", expanded=False):
+                hover_count_tab1 = st.slider("悬停显示前 N 种细胞", 3, len(cell_types), min(6, len(cell_types)), key="tab1_hover")
+
             if coords_for_plot is not None:
                 # 1. 尝试加载预生成的背景图
                 bg_img = None
@@ -174,6 +177,7 @@ def main():
                         xlim = metadata['xlim']
                         ylim = metadata['ylim']
                     st.caption("✅ 已加载预生成的高清背景图")
+                    
                 else:
                     st.info("💡 正在实时生成背景图（建议运行 generate_all_pie_charts.py 提前生成以加速）...")
                     with st.spinner("⏳ 正在绘制饼图背景..."):
@@ -196,7 +200,7 @@ def main():
                     row = predict_df.iloc[idx]
                     sorted_row = row.sort_values(ascending=False)
                     text = f"<b>位置 {predict_df.index[idx]}</b><br>"
-                    for cell_type, proportion in sorted_row.head(6).items(): # 默认显示前6个
+                    for cell_type, proportion in sorted_row.head(hover_count_tab1).items():
                         bar = "█" * int(proportion * 20)
                         text += f"{cell_type}: {proportion:.2%}<br>"
                     hover_texts.append(text)
@@ -257,7 +261,8 @@ def main():
                 fig.update_yaxes(range=[ylim[0], ylim[1]], visible=False, showgrid=False, scaleanchor="x", scaleratio=1)
                 
                 fig.update_layout(
-                    height=650,
+                    height=800,  # 增大默认高度，配合 use_container_width 实现更好的大屏效果
+                    autosize=True,
                     margin=dict(l=0, r=0, t=30, b=0),
                     plot_bgcolor='rgba(0,0,0,0)',
                     paper_bgcolor='rgba(0,0,0,0)',
@@ -274,7 +279,7 @@ def main():
                     dragmode='pan'
                 )
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False, 'responsive': True})
                 st.caption("💡 说明：此图背景为多色饼图，展示每个位置的细胞组成；鼠标悬停可查看具体比例数据。")
             else:
                  st.warning("缺少坐标数据，无法生成交互式图表。显示静态预览：")
@@ -285,18 +290,18 @@ def main():
         with tabs[1]:
             st.subheader("主要类型分布 (优势细胞)")
             
-            # 控件区域
-            col_ctrl1, col_ctrl2 = st.columns([1, 1])
-            with col_ctrl1:
-                st.markdown("##### ⚙️ 显示设置")
+            with st.expander("🛠️ 设置 & 说明", expanded=False):
                 hover_count = st.slider("悬停显示前 N 种细胞", 3, len(cell_types), min(6, len(cell_types)), key="tab2_hover")
-            with col_ctrl2:
-                st.markdown("##### 👁️ 图例控制")
-                col_btn1, col_btn2 = st.columns(2)
-                with col_btn1:
-                    select_all = st.button("全选", use_container_width=True, key="tab2_all")
-                with col_btn2:
-                    deselect_all = st.button("全不选", use_container_width=True, key="tab2_none")
+                st.info(
+                    """
+                    🖱️ 图例操作说明：
+                    -  单击：选中或取消选中该类型
+                    -  双击（高亮时）：只显示该类型（独显模式）
+                    -  双击（灰色时）：全选所有类型（恢复显示）
+                    ---
+                    💡 提示：点的大小直接反映置信度（指数级差异）
+                    """
+                )
             
             # 重新加载或复用坐标数据
             if coords_for_plot is not None:
@@ -379,7 +384,8 @@ def main():
                     )
 
                 fig.update_layout(
-                    height=650,
+                    height=800,  # 增大默认高度
+                    autosize=True,
                     title='主要类型分布',
                     yaxis=dict(scaleanchor="x", scaleratio=1, visible=False, showgrid=False),
                     xaxis=dict(visible=False, showgrid=False),
@@ -392,14 +398,10 @@ def main():
                     paper_bgcolor='rgba(0,0,0,0)'
                 )
                 
-                # 处理全选/全不选按钮
-                if deselect_all:
-                    fig.for_each_trace(lambda trace: trace.update(visible='legendonly'))
-                elif select_all:
-                    fig.for_each_trace(lambda trace: trace.update(visible=True))
+
                 
-                st.plotly_chart(fig, use_container_width=True)
-                st.caption("💡 提示：点的大小直接反映置信度（指数级差异）。单击图例可隐藏/显示单个类型。")
+                st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False, 'responsive': True})
+
             else:
                 st.warning("无法显示交互式图表（坐标数据不匹配）")
         
@@ -430,37 +432,60 @@ def main():
             )
             st.subheader(f"单细胞类型热图: {selected_type}")
             
-            # 查找对应的热图
-            heatmap_path = os.path.join(result_dir, f"{selected_type}.jpg")
-            if os.path.exists(heatmap_path):
-                st.image(heatmap_path, use_container_width=True)
+            # 优先生成交互式热图
+            if coords_for_plot is not None:
+                import plotly.graph_objects as go
+                
+                display_df = coords_for_plot.copy()
+                display_df['proportion'] = predict_df[selected_type].values
+                
+                # 构建 Hover Text
+                hover_texts = [f"<b>位置 {idx}</b><br>类型: {selected_type}<br>比例: {val:.2%}" 
+                              for idx, val in zip(display_df.index, display_df['proportion'])]
+
+                fig = go.Figure()
+                fig.add_trace(
+                    go.Scatter(
+                        x=display_df['x'],
+                        y=display_df['y'],
+                        mode='markers',
+                        marker=dict(
+                            size=12,         # 固定大小，模拟热图点阵
+                            color=display_df['proportion'],
+                            colorscale='Reds',
+                            showscale=True,
+                            colorbar=dict(title="比例"),
+                            opacity=1.0
+                        ),
+                        text=hover_texts,
+                        hovertemplate='%{text}<extra></extra>'
+                    )
+                )
+                
+                fig.update_layout(
+                    height=800,
+                    autosize=True,
+                    yaxis=dict(scaleanchor="x", scaleratio=1, visible=False, showgrid=False),
+                    xaxis=dict(visible=False, showgrid=False),
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    dragmode='pan',
+                    margin=dict(l=0, r=0, t=30, b=0),
+                )
+                
+                st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False, 'responsive': True})
+            
+            # 如果没有坐标数据，尝试显示静态图作为 fallback
             else:
-                if coords_for_plot is not None:
-                     import plotly.express as px
-                     plot_df = coords_for_plot.copy()
-                     plot_df['proportion'] = predict_df[selected_type].values
-                     fig = px.scatter(
-                         plot_df, x='x', y='y', color='proportion',
-                         color_continuous_scale='Viridis',
-                         title=f'{selected_type} 空间分布',
-                         size_max=15
-                     )
-                     fig.update_layout(height=600, yaxis=dict(scaleanchor="x", scaleratio=1))
-                     st.plotly_chart(fig, use_container_width=True)
+                heatmap_path = os.path.join(result_dir, f"{selected_type}.jpg")
+                if os.path.exists(heatmap_path):
+                    st.image(heatmap_path, use_container_width=True)
                 else:
-                    st.warning("无法显示热图")
+                    st.warning("暂无该类型的坐标数据或静态图片。")
         
-        # --- Tab 5: 模型训练监控 ---
+        
+        # --- Tab 5: 详细数据表 ---
         with tabs[4]:
-            st.subheader("模型训练监控")
-            loss_path = os.path.join(result_dir, "Loss_function.jpg")
-            if os.path.exists(loss_path):
-                st.image(loss_path, use_container_width=True)
-            else:
-                st.warning("Loss 曲线文件不存在")
-        
-        # --- Tab 6: 详细数据表 ---
-        with tabs[5]:
             st.subheader("详细数据表")
             st.dataframe(predict_df, use_container_width=True, height=400)
             
