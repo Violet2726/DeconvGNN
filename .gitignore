@@ -5,10 +5,8 @@ output/*.pkl
 env/*
 *.xml
 *.iml
-
+.idea
 
 data
-开题报告_文献翻译1.pdf
-_miniconda
-miniconda_installer.exe
 output
+_miniconda
