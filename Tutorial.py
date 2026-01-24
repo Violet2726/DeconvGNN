@@ -332,4 +332,4 @@ results = run_STdGCN(
 )
 
 # 保存结果
-results.write_h5ad(paths['output_path'] + '\\results.h5ad')
+results.write_h5ad(os.path.join(paths['output_path'], 'results.h5ad'))
