@@ -25,17 +25,17 @@ st.markdown("""
     footer {visibility: hidden;}
     
     .main-header {
-        font-size: 2.5rem;
+        font-size: 1.5rem;
         font-weight: bold;
         color: #1E88E5;
         text-align: center;
-        margin-bottom: 1rem;
+        margin-bottom: 0.5rem;
     }
     .sub-header {
-        font-size: 1.2rem;
+        font-size: 1.0rem;
         color: #666;
         text-align: center;
-        margin-bottom: 2rem;
+        margin-bottom: 1rem;
     }
     .metric-card {
         background-color: #f0f2f6;
@@ -81,12 +81,13 @@ def get_cell_types(predict_df):
     return predict_df.columns.tolist()
 
 def main():
-    # 标题
-    st.markdown('<p class="main-header">🧬 STdGCN 空间转录组反卷积可视化系统</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">基于图神经网络的细胞类型反卷积结果展示</p>', unsafe_allow_html=True)
-    
     # 侧边栏
     with st.sidebar:
+        # 标题 (移至侧边栏)
+        st.markdown('<p class="main-header">🧬 STdGCN<br>空间转录组反卷积<br>可视化系统</p>', unsafe_allow_html=True)
+        st.markdown('<p class="sub-header">基于图神经网络的<br>细胞类型反卷积结果展示</p>', unsafe_allow_html=True)
+        st.divider()
+
         st.header("📊 数据选择")
         
         # 数据集选择
@@ -290,18 +291,8 @@ def main():
         with tabs[1]:
             st.subheader("主要类型分布 (优势细胞)")
             
-            with st.expander("🛠️ 设置 & 说明", expanded=False):
+            with st.expander("🛠️ 设置", expanded=False):
                 hover_count = st.slider("悬停显示前 N 种细胞", 3, len(cell_types), min(6, len(cell_types)), key="tab2_hover")
-                st.info(
-                    """
-                    🖱️ 图例操作说明：
-                    -  单击：选中或取消选中该类型
-                    -  双击（高亮时）：只显示该类型（独显模式）
-                    -  双击（灰色时）：全选所有类型（恢复显示）
-                    ---
-                    💡 提示：点的大小直接反映置信度（指数级差异）
-                    """
-                )
             
             # 重新加载或复用坐标数据
             if coords_for_plot is not None:
@@ -323,11 +314,10 @@ def main():
                 # 归一化到 0-1
                 normalized = (p - min_p) / (max_p - min_p + 1e-6)
                 
-                # 使用指数函数放大差异，映射到 8-25 像素
-                # e^(2*x) 在 x=0 时为 1，x=1 时为 e^2≈7.39
+                # 使用指数函数放大差异，映射到 8-14 像素
                 # 归一化后：(e^(2*x) - 1) / (e^2 - 1) 范围 0-1
                 exp_normalized = (np.exp(2.0 * normalized) - 1) / (np.exp(2.0) - 1)
-                pixel_sizes = 8 + exp_normalized * 17  # 范围 8-25
+                pixel_sizes = 8 + exp_normalized * 6  # 范围 8-14
                 
                 display_df['pixel_size'] = pixel_sizes
 
@@ -395,13 +385,20 @@ def main():
                     ),
                     dragmode='pan',
                     plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)'
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    margin=dict(l=20, r=20, t=50, b=0) # 减少留白，拉近下方文字距离
                 )
                 
-
                 
                 st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False, 'responsive': True})
-
+                st.caption("""
+                    🖱️ 图例操作说明：
+                    -  单击：选中或取消选中该类型
+                    -  双击（高亮时）：只显示该类型（独显模式）
+                    -  双击（灰色时）：全选所有类型（恢复显示）
+                    ---
+                    💡 提示：点的大小直接反映置信度（指数级差异）
+                    """)
             else:
                 st.warning("无法显示交互式图表（坐标数据不匹配）")
         
