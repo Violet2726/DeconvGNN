@@ -1,6 +1,13 @@
 """
 STdGCN 空间转录组反卷积可视化系统
-主应用入口
+主应用入口文件
+
+此文件负责组织主要的 Streamlit 界面布局和交互逻辑。
+包含：
+1. 页面配置与初始化
+2. 全局样式注入 (from styles.py)
+3. 侧边栏：数据集选择与管理 (from data_loader.py)
+4. 主内容区：数据展示与可视化选项卡
 """
 
 import streamlit as st
@@ -9,7 +16,13 @@ import numpy as np
 import os
 from pathlib import Path
 
-# 页面配置
+# --- 本地模块导入 ---
+# styles: 负责所有 CSS 样式定义和注入
+import visualization_app.styles as styles
+# data_loader: 负责数据目录管理、文件读取和缓存
+import visualization_app.data_loader as data_loader
+
+# --- 1. 页面配置 ---
 st.set_page_config(
     page_title="STdGCN 可视化系统",
     page_icon="🧬",
@@ -17,105 +30,160 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 自定义样式
-st.markdown("""
-<style>
-    /* 隐藏 Streamlit 默认菜单和水印，保留侧边栏按钮 */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    .main-header {
-        font-size: 1.5rem;
-        font-weight: bold;
-        color: #1E88E5;
-        text-align: center;
-        margin-bottom: 0.5rem;
-    }
-    .sub-header {
-        font-size: 1.0rem;
-        color: #666;
-        text-align: center;
-        margin-bottom: 1rem;
-    }
-    .metric-card {
-        background-color: #f0f2f6;
-        border-radius: 10px;
-        padding: 1rem;
-        text-align: center;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# 数据目录配置
-DATA_DIRS = {
-    "Visium 小鼠大脑 (2695 spots)": "output/visium_results",
-    "seqFISH+ 真实数据 (72 spots)": "output/seqfish_results",
-    "STARmap 模拟数据 (189 spots)": "output/stdgcn_starmap",
-}
-
-@st.cache_data
-def load_results(result_dir):
-    """加载反卷积结果"""
-    predict_path = os.path.join(result_dir, "predict_result.csv")
-    if not os.path.exists(predict_path):
-        return None, None
-    
-    predict_df = pd.read_csv(predict_path, index_col=0)
-    
-    # 尝试加载坐标
-    coords = None
-    for data_dir in ["data/visium_combined", "data/seqfish_tsv", "data/starmap_tsv"]:
-        coord_path = os.path.join(data_dir, "coordinates.csv")
-        if os.path.exists(coord_path):
-            try:
-                coords = pd.read_csv(coord_path, index_col=0)
-                if len(coords) == len(predict_df):
-                    break
-            except:
-                continue
-    
-    return predict_df, coords
-
-def get_cell_types(predict_df):
-    """获取细胞类型列表"""
-    return predict_df.columns.tolist()
+# 注入自定义样式（强制按钮不换行、隐藏默认菜单等）
+styles.inject_custom_css()
 
 def main():
-    # 侧边栏
+    """
+    主函数：控制整体应用流程
+    """
+    
+    # === 侧边栏区域：数据选择与管理 ===
     with st.sidebar:
-        # 标题 (移至侧边栏)
+        # 顶部标题
         st.markdown('<p class="main-header">🧬 STdGCN<br>空间转录组反卷积<br>可视化系统</p>', unsafe_allow_html=True)
         st.markdown('<p class="sub-header">基于图神经网络的<br>细胞类型反卷积结果展示</p>', unsafe_allow_html=True)
         st.divider()
 
         st.header("📊 数据选择")
         
-        # 数据集选择
-        dataset = st.selectbox(
-            "选择数据集",
-            list(DATA_DIRS.keys()),
-            index=0
-        )
-        result_dir = DATA_DIRS[dataset]
+        # 初始化会话状态 (Session State)
+        if 'data_sources' not in st.session_state:
+            # 初始为空，或者从配置读取预设
+            st.session_state.data_sources = data_loader.DATA_DIRS.copy()
         
-        st.divider()
-        
-        # 加载数据
-        predict_df, coords = load_results(result_dir)
-        
-        if predict_df is not None:
-            cell_types = get_cell_types(predict_df)
+        if 'show_import' not in st.session_state:
+            st.session_state.show_import = False
             
-            # 侧边栏不再显示具体设置，保持整洁
-            pass
+        # 1. 获取现有数据集列表
+        options = list(st.session_state.data_sources.keys())
+        
+        # ------------------- 侧边栏逻辑：空状态处理 -------------------
+        if not options:
+            # 如果没有数据，且没在导入，显式提示
+            selected_dataset_name = None
+            result_dir = None
         else:
-            st.error("❌ 未找到结果文件")
-            st.info(f"请先运行 Tutorial.py 生成结果")
-            return
+            # ------------------- 侧边栏逻辑：数据集选择器 -------------------
+            # 下拉菜单 (单独一行，保证宽度和美观)
+            selected_dataset_name = st.selectbox(
+                "当前数据集",
+                options,
+                index=0,
+                label_visibility="visible",
+                key="dataset_selector"  # 绑定 state 以便编程控制选中项
+            )
+            result_dir = st.session_state.data_sources[selected_dataset_name]
+
+
+        # ------------------- 侧边栏逻辑：功能按钮 -------------------
+        # 两列布局：删除 | 导入
+        col_del, col_add = st.columns(2)
+        
+        with col_del:
+            # 仅当有选中数据时才启用删除
+            if selected_dataset_name:
+                if st.button("🗑️ 删除", use_container_width=True, help="删除当前选中的数据集"):
+                    del st.session_state.data_sources[selected_dataset_name]
+                    # 删除当前选中项后，清除 selector 状态防止报错
+                    if "dataset_selector" in st.session_state:
+                        del st.session_state.dataset_selector
+                    st.rerun()
+            else:
+                 st.button("🗑️ 删除", disabled=True, use_container_width=True)
+
+        with col_add:
+            # 导入/取消导入 切换按钮
+            btn_label = "❌ 取消" if st.session_state.show_import and options else "📂 导入"
+            if st.button(btn_label, use_container_width=True):
+                st.session_state.show_import = not st.session_state.show_import
+                st.rerun()
+
+        st.divider()
+
+        # ------------------- 侧边栏逻辑：导入面板 -------------------
+        # 嵌入式显示，点击导入后展开
+        if st.session_state.show_import:
+            with st.container():
+                st.markdown("#### 📥 导入新数据")
+                
+                if 'temp_import_path' not in st.session_state:
+                    st.session_state.temp_import_path = ""
+                    
+                def open_folder_dialog():
+                    """调用 tkinter 打开系统文件夹选择框"""
+                    try:
+                        import tkinter as tk
+                        from tkinter import filedialog
+                        root = tk.Tk()
+                        root.withdraw()
+                        root.attributes('-topmost', True)
+                        folder = filedialog.askdirectory(title="选择 STdGCN 输出目录")
+                        root.destroy()
+                        return folder
+                    except:
+                        return None
+
+                col_path, col_browse = st.columns([3, 1])
+                with col_path:
+                     st.text_input("路径", value=st.session_state.temp_import_path, disabled=True, label_visibility="collapsed", placeholder="请选择文件夹...")
+                with col_browse:
+                    if st.button("浏览", key="btn_browse_folder", use_container_width=True):
+                        folder = open_folder_dialog()
+                        if folder:
+                            st.session_state.temp_import_path = folder
+                            st.rerun()
+                
+                # 确认逻辑
+                if st.session_state.temp_import_path:
+                    import_path = st.session_state.temp_import_path
+                    if os.path.exists(os.path.join(import_path, "predict_result.csv")):
+                        default_name = os.path.basename(import_path)
+                        new_name = st.text_input("数据集命名", value=default_name)
+                        
+                        # 定义回调函数，在按钮点击时直接修改 state
+                        def on_add_confirm():
+                            if new_name:
+                                st.session_state.data_sources[new_name] = import_path
+                                # 自动选中新添加的数据集
+                                st.session_state.dataset_selector = new_name
+                                st.session_state.show_import = False
+                                st.session_state.temp_import_path = ""
+                            else:
+                                st.error("请输入名称")
+
+                        st.button("➕ 确认添加", type="primary", use_container_width=True, on_click=on_add_confirm)
+                        
+                        with st.expander("查看数据要求", expanded=False):
+                            st.markdown("""
+                            **必需文件**：`predict_result.csv`  
+                            **可选文件**：`coordinates.csv`
+                            """)
+                    else:
+                        st.error("❌ 缺少 predict_result.csv")
+                
+                st.divider()
+        
+    # === 主内容区域 ===
     
-    # 主内容区
+    # 1. 全局数据检查
+    if result_dir is None:
+        st.title("欢迎使用 STdGCN 可视化系统")
+        st.info("👈 请在左侧 **侧边栏** 导入数据以开始使用")
+        return
+        
+    # 2. 加载数据 (使用 data_loader 模块，带缓存)
+    predict_df, coords = data_loader.load_results(result_dir)
+    
     if predict_df is not None:
-        # 第一行：统计信息
+        cell_types = data_loader.get_cell_types(predict_df)
+    else:
+        st.error("❌ 未找到结果文件")
+        st.info(f"请先运行 Tutorial.py 生成结果")
+        return
+    
+    # 3. 顶部统计仪表盘
+    if predict_df is not None:
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("空间点数量", len(predict_df))
@@ -128,8 +196,7 @@ def main():
         
         st.divider()
         
-        # 第二行：可视化标签页
-        # 第二行：可视化标签页
+        # 4. 可视化选项卡
         tabs = st.tabs([
             "🎨 空间组成分布", 
             "🔍 主要类型分布", 
@@ -138,31 +205,25 @@ def main():
             "📈 详细数据表"
         ])
         
-        # --- Tab 1: 空间组成分布 (原交互式饼图模式) ---
+        # --- Tab 1: 空间组成分布 (Plotly Scatter + 饼图背景) ---
         with tabs[0]:
             st.subheader("空间组成分布 (多色饼图)")
             
-            from visualization_app.utils import generate_clean_pie_chart
+            # 引入依赖 (局部引入以优化启动速度)
+            import visualization_app.utils as utils
             
-            # 检查坐标数据
-            coords_for_plot = None
-            for data_dir in ["data/visium_combined", "data/seqfish_tsv", "data/starmap_tsv"]:
-                coord_path = os.path.join(data_dir, "coordinates.csv")
-                if os.path.exists(coord_path):
-                    try:
-                        temp_coords = pd.read_csv(coord_path, index_col=0)
-                        if len(temp_coords) == len(predict_df):
-                            coords_for_plot = temp_coords
-                            break
-                    except:
-                        continue
+            # 检查坐标数据 (逻辑需要在 data_loader 中处理吗？暂时保持在这里因为涉及 specific logic)
+            # 为了更好的逻辑分离，理想情况下应该把这部分也移出去，但现在主要任务是重构app.py结构
             
+            # 使用 data_loader 提供的 coords 即可，它已经处理好了查找逻辑
+            coords_for_plot = coords
+
             # 添加设置栏
             with st.expander("🛠️ 设置", expanded=False):
                 hover_count_tab1 = st.slider("悬停显示前 N 种细胞", 3, len(cell_types), min(6, len(cell_types)), key="tab1_hover")
 
             if coords_for_plot is not None:
-                # 1. 尝试加载预生成的背景图
+                # 1. 尝试加载/生成背景图
                 bg_img = None
                 xlim, ylim = None, None
                 
@@ -177,107 +238,50 @@ def main():
                         metadata = json.load(f)
                         xlim = metadata['xlim']
                         ylim = metadata['ylim']
-                    st.caption("✅ 已加载预生成的高清背景图")
                     
                 else:
-                    st.info("💡 正在实时生成背景图（建议运行 generate_all_pie_charts.py 提前生成以加速）...")
                     with st.spinner("⏳ 正在绘制饼图背景..."):
-                        @st.cache_data(persist=True, show_spinner=False)
-                        def get_cached_background(df, cds, size):
-                            from visualization_app.utils import generate_clean_pie_chart
-                            return generate_clean_pie_chart(df, cds, size)
-                        
-                        bg_img, (xlim, ylim) = get_cached_background(predict_df, coords_for_plot, None)
-                
-                # 2. 准备交互数据（透明散点）
-                import plotly.express as px
-                import plotly.graph_objects as go
-            
-                plot_df = coords_for_plot.copy()
-                
-                # 构建悬停文本
-                hover_texts = []
-                for idx in range(len(predict_df)):
-                    row = predict_df.iloc[idx]
-                    sorted_row = row.sort_values(ascending=False)
-                    text = f"<b>位置 {predict_df.index[idx]}</b><br>"
-                    for cell_type, proportion in sorted_row.head(hover_count_tab1).items():
-                        bar = "█" * int(proportion * 20)
-                        text += f"{cell_type}: {proportion:.2%}<br>"
-                    hover_texts.append(text)
-                plot_df['hover_text'] = hover_texts
-                
-                # 3. 准备颜色映射（与饼图生成的逻辑保持一致）
-                import matplotlib.pyplot as plt
-                import matplotlib
-                labels = predict_df.columns.tolist()
-                if len(labels) <= 10:
-                    colors = plt.rcParams["axes.prop_cycle"].by_key()['color'][:len(labels)]
-                else:
-                    color_map = plt.get_cmap('rainbow', len(labels))
-                    colors = [matplotlib.colors.to_hex(x, keep_alpha=False) for x in color_map(range(len(labels)))]
-                
-                cell_type_color_map = dict(zip(labels, colors))
+                        # 定义新函数直接调用 utils 并处理保存
+                        # ... (generate_and_save_background, 保持不变但是为了缩短代码这里略去具体定义，实际替换时需包含)
+                        def generate_and_save_background(df, cds, size, save_dir):
+                            img, bounds = utils.generate_clean_pie_chart(df, cds, size)
+                            # 尝试保存到结果目录
+                            try:
+                                img_path = os.path.join(save_dir, "interactive_pie_background.png")
+                                meta_path = os.path.join(save_dir, "interactive_pie_bounds.json")
+                                img.save(img_path)
+                                import json
+                                with open(meta_path, 'w') as f:
+                                    json.dump({'xlim': bounds[0], 'ylim': bounds[1]}, f)
+                                return img, bounds, True 
+                            except Exception as e:
+                                return img, bounds, False
 
-                # 4. 创建 Plotly 图表
-                fig = px.scatter(
-                    plot_df, x='x', y='y',
-                    hover_name='hover_text',
-                    title='空间组成分布'
-                )
+                        @st.cache_data(persist=True, show_spinner=False)
+                        def get_cached_background(df, cds, size, save_path_key):
+                            return utils.generate_clean_pie_chart(df, cds, size)
+                        
+                        # 1. 先计算
+                        bg_img, (xlim, ylim) = get_cached_background(predict_df, coords_for_plot, None, result_dir)
+                        
+                        # 2. 检查并保存
+                        target_img = os.path.join(result_dir, "interactive_pie_background.png")
+                        if not os.path.exists(target_img):
+                             try:
+                                 bg_img.save(target_img)
+                                 import json
+                                 with open(os.path.join(result_dir, "interactive_pie_bounds.json"), 'w') as f:
+                                     json.dump({'xlim': xlim, 'ylim': ylim}, f)
+                             except:
+                                 pass
                 
-                # 设置点完全透明（作为交互层）
-                fig.update_traces(
-                    marker=dict(opacity=0),
-                    hovertemplate='%{hovertext}<extra></extra>'
-                )
-                
-                # 5. 添加"虚拟"图例 (纯展示)
-                for cell_type, color in cell_type_color_map.items():
-                    fig.add_trace(
-                        go.Scatter(
-                            x=[None], y=[None],
-                            mode='markers',
-                            marker=dict(size=10, color=color, symbol='circle'),
-                            name=cell_type,
-                            showlegend=True
-                        )
-                    )
-                
-                # 6. 添加背景图片
-                fig.add_layout_image(
-                    dict(
-                        source=bg_img,
-                        xref="x", yref="y",
-                        x=xlim[0], y=ylim[1],
-                        sizex=xlim[1] - xlim[0],
-                        sizey=ylim[1] - ylim[0],
-                        sizing="stretch",
-                        layer="below"
-                    )
-                )
-                
-                # 7. 坐标轴设置
-                fig.update_xaxes(range=[xlim[0], xlim[1]], visible=False, showgrid=False)
-                fig.update_yaxes(range=[ylim[0], ylim[1]], visible=False, showgrid=False, scaleanchor="x", scaleratio=1)
-                
-                fig.update_layout(
-                    height=800,  # 增大默认高度，配合 use_container_width 实现更好的大屏效果
-                    autosize=True,
-                    margin=dict(l=0, r=0, t=30, b=0),
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    legend=dict(
-                        title="细胞类型 (饼图颜色)",
-                        orientation="v",
-                        yanchor="top",
-                        y=1,
-                        xanchor="left",
-                        x=1.02,
-                        itemclick=False,
-                        itemdoubleclick=False
-                    ),
-                    dragmode='pan'
+                # 2. 准备交互数据 (使用 utils 封装函数)
+                # 3. 颜色映射 (与 utils 中保持一致)
+                cell_type_color_map = utils.get_color_map(predict_df.columns.tolist())
+
+                fig = utils.generate_plotly_scatter(
+                    coords_for_plot, predict_df, hover_count_tab1, 
+                    bg_img, (xlim, ylim), cell_type_color_map
                 )
                 
                 st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False, 'responsive': True})
@@ -285,208 +289,57 @@ def main():
             else:
                  st.warning("缺少坐标数据，无法生成交互式图表。显示静态预览：")
                  pie_plot_path = os.path.join(result_dir, "predict_results_pie_plot.jpg")
-                 st.image(pie_plot_path, use_container_width=True)
+                 if os.path.exists(pie_plot_path):
+                     st.image(pie_plot_path, use_container_width=True)
 
-        # --- Tab 2: 主要类型分布 (原交互式散点模式) ---
+        # --- Tab 2: 主要类型分布 (Dominant Scatter) ---
         with tabs[1]:
             st.subheader("主要类型分布 (优势细胞)")
             
             with st.expander("🛠️ 设置", expanded=False):
                 hover_count = st.slider("悬停显示前 N 种细胞", 3, len(cell_types), min(6, len(cell_types)), key="tab2_hover")
             
-            # 重新加载或复用坐标数据
             if coords_for_plot is not None:
-                import plotly.graph_objects as go
-                import numpy as np
-                import matplotlib
-                import matplotlib.pyplot as plt
-                
-                # 准备数据
-                display_df = coords_for_plot.copy()
-                display_df['主要细胞类型'] = predict_df.idxmax(axis=1).values
-                display_df['主要比例'] = predict_df.max(axis=1).values
-                
-                # 计算绝对大小 (Pixel Size)
-                # 基于实际数据范围归一化，确保差异可见
-                p = display_df['主要比例'].values
-                min_p, max_p = p.min(), p.max()
-                
-                # 归一化到 0-1
-                normalized = (p - min_p) / (max_p - min_p + 1e-6)
-                
-                # 使用指数函数放大差异，映射到 8-14 像素
-                # 归一化后：(e^(2*x) - 1) / (e^2 - 1) 范围 0-1
-                exp_normalized = (np.exp(2.0 * normalized) - 1) / (np.exp(2.0) - 1)
-                pixel_sizes = 8 + exp_normalized * 6  # 范围 8-14
-                
-                display_df['pixel_size'] = pixel_sizes
-
-                # 准备颜色
+                # 颜色映射
                 unique_types = sorted(predict_df.columns.tolist())
-                if len(unique_types) <= 10:
-                    colors_list = plt.rcParams["axes.prop_cycle"].by_key()['color'][:len(unique_types)]
-                else:
-                    color_tab = plt.get_cmap('rainbow', len(unique_types))
-                    colors_list = [matplotlib.colors.to_hex(x, keep_alpha=False) for x in color_tab(range(len(unique_types)))]
-                color_map = dict(zip(unique_types, colors_list))
-
-                # 创建 Figure
-                fig = go.Figure()
-
-                # 按类型分组添加 Traces
-                # 这样每种类型都有独立的图例项，且颜色正确
-                for cell_type in unique_types:
-                    # 筛选该类型的数据
-                    subset = display_df[display_df['主要细胞类型'] == cell_type]
-                    
-                    if len(subset) == 0:
-                        continue
-                        
-                    # 构建悬停文本
-                    # 注意：需要重新根据 subset 的 index 找到对应的详细比例
-                    hover_texts = []
-                    for idx in subset.index:
-                        # 找到原始 predict_df 中的对应行
-                        # 假设 coords_for_plot 的 index 和 predict_df 的 index 是一致的（在开头已经验证过）
-                        row = predict_df.loc[idx]
-                        sorted_row = row.sort_values(ascending=False)
-                        text = f"<b>位置 {idx}</b><br>主要类型: {cell_type} ({subset.loc[idx, '主要比例']:.2%})<br>"
-                        for ct, prop in sorted_row.head(hover_count).items():
-                            text += f"{ct}: {prop:.2%}<br>"
-                        hover_texts.append(text)
-
-                    fig.add_trace(
-                        go.Scatter(
-                            x=subset['x'],
-                            y=subset['y'],
-                            mode='markers',
-                            name=cell_type,
-                            marker=dict(
-                                color=color_map[cell_type],
-                                size=subset['pixel_size'], # 这里传入的是绝对像素值
-                                sizemode='diameter',       # 关键！直接解析为直径像素
-                                opacity=0.9,
-                                line=dict(width=0)         # 无描边
-                            ),
-                            hovertemplate='%{hovertext}<extra></extra>',
-                            hovertext=hover_texts
-                        )
-                    )
-
-                fig.update_layout(
-                    height=800,  # 增大默认高度
-                    autosize=True,
-                    title='主要类型分布',
-                    yaxis=dict(scaleanchor="x", scaleratio=1, visible=False, showgrid=False),
-                    xaxis=dict(visible=False, showgrid=False),
-                    legend=dict(
-                        orientation="v", yanchor="top", y=1, xanchor="left", x=1.02,
-                        itemclick="toggle", itemdoubleclick="toggleothers"
-                    ),
-                    dragmode='pan',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    margin=dict(l=20, r=20, t=50, b=0) # 减少留白，拉近下方文字距离
+                color_map = utils.get_color_map(unique_types)
+                
+                fig = utils.generate_dominant_scatter(
+                    coords_for_plot, predict_df, hover_count, color_map
                 )
                 
-                
-                st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False, 'responsive': True})
-                st.caption("""
-                    🖱️ 图例操作说明：
-                    -  单击：选中或取消选中该类型
-                    -  双击（高亮时）：只显示该类型（独显模式）
-                    -  双击（灰色时）：全选所有类型（恢复显示）
-                    ---
-                    💡 提示：点的大小直接反映置信度（指数级差异）
-                    """)
+                st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False})
+                st.caption("🖱️ 图例操作：单击显示/隐藏；双击独显当前类型。")
             else:
                 st.warning("无法显示交互式图表（坐标数据不匹配）")
         
-        # --- Tab 3: 整体比例统计 ---
+        # --- Tab 3: 整体比例统计 (Bar Chart) ---
         with tabs[2]:
             st.subheader("📊 整体比例统计")
-            import plotly.express as px
-            mean_proportions = predict_df.mean().sort_values(ascending=True)
-            fig = px.bar(
-                x=mean_proportions.values,
-                y=mean_proportions.index,
-                orientation='h',
-                labels={'x': '平均比例', 'y': '细胞类型'},
-                color=mean_proportions.values,
-                color_continuous_scale='Blues',
-                title="各细胞类型平均占比"
-            )
-            fig.update_layout(height=500, showlegend=False)
+            fig = utils.generate_proportion_bar(predict_df)
             st.plotly_chart(fig, use_container_width=True)
 
-        # --- Tab 4: 单细胞类型热图 ---
+        # --- Tab 4: 单细胞类型热图 (Heatmap) ---
         with tabs[3]:
-            # 细胞类型选择器放在热图标签页内
-            selected_type = st.selectbox(
-                "🔬 选择要查看的细胞类型",
-                cell_types,
-                index=0
-            )
+            selected_type = st.selectbox("🔬 选择要查看的细胞类型", cell_types, index=0)
             st.subheader(f"单细胞类型热图: {selected_type}")
             
-            # 优先生成交互式热图
             if coords_for_plot is not None:
-                import plotly.graph_objects as go
-                
-                display_df = coords_for_plot.copy()
-                display_df['proportion'] = predict_df[selected_type].values
-                
-                # 构建 Hover Text
-                hover_texts = [f"<b>位置 {idx}</b><br>类型: {selected_type}<br>比例: {val:.2%}" 
-                              for idx, val in zip(display_df.index, display_df['proportion'])]
-
-                fig = go.Figure()
-                fig.add_trace(
-                    go.Scatter(
-                        x=display_df['x'],
-                        y=display_df['y'],
-                        mode='markers',
-                        marker=dict(
-                            size=12,         # 固定大小，模拟热图点阵
-                            color=display_df['proportion'],
-                            colorscale='Reds',
-                            showscale=True,
-                            colorbar=dict(title="比例"),
-                            opacity=1.0
-                        ),
-                        text=hover_texts,
-                        hovertemplate='%{text}<extra></extra>'
-                    )
-                )
-                
-                fig.update_layout(
-                    height=800,
-                    autosize=True,
-                    yaxis=dict(scaleanchor="x", scaleratio=1, visible=False, showgrid=False),
-                    xaxis=dict(visible=False, showgrid=False),
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    dragmode='pan',
-                    margin=dict(l=0, r=0, t=30, b=0),
-                )
-                
-                st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False, 'responsive': True})
-            
-            # 如果没有坐标数据，尝试显示静态图作为 fallback
+                fig = utils.generate_heatmap(coords_for_plot, predict_df, selected_type)
+                st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False})
             else:
+                # 尝试显示静态图 fallback
                 heatmap_path = os.path.join(result_dir, f"{selected_type}.jpg")
                 if os.path.exists(heatmap_path):
                     st.image(heatmap_path, use_container_width=True)
                 else:
                     st.warning("暂无该类型的坐标数据或静态图片。")
         
-        
-        # --- Tab 5: 详细数据表 ---
+        # --- Tab 5: 详细数据表 (Table) ---
         with tabs[4]:
             st.subheader("详细数据表")
             st.dataframe(predict_df, use_container_width=True, height=400)
             
-            # 下载按钮
             csv = predict_df.to_csv()
             st.download_button(
                 label="📥 下载 CSV",
