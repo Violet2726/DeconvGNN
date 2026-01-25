@@ -31,15 +31,14 @@ def load_results(result_dir: str) -> Tuple[Optional[pd.DataFrame], Optional[pd.D
     
     # 优先检查结果目录本身是否包含坐标文件
     coord_in_result = os.path.join(result_dir, "coordinates.csv")
-    # 再检查与结果目录同级的 data 目录
+    # 检查父目录（数据集根目录）
     parent_dir = os.path.dirname(result_dir)
-    coord_in_parent_data = os.path.join(parent_dir, "data", "coordinates.csv")
+    coord_in_parent = os.path.join(parent_dir, "coordinates.csv")
+    # 检查父目录下的 combined 子目录
+    coord_in_combined = os.path.join(parent_dir, "combined", "coordinates.csv")
     
-    # 搜索顺序：结果目录 -> 父目录/data -> 预设目录
-    search_paths = [coord_in_result, coord_in_parent_data, 
-                    "data/visium_combined/coordinates.csv", 
-                    "data/seqfish_tsv/coordinates.csv", 
-                    "data/starmap_tsv/coordinates.csv"]
+    # 搜索顺序：结果目录 -> 父目录 -> combined目录
+    search_paths = [coord_in_result, coord_in_parent, coord_in_combined]
     
     for coord_path in search_paths:
         if os.path.exists(coord_path):

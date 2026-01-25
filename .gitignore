@@ -8,5 +8,4 @@ env/*
 .idea
 
 data
-output
 _miniconda

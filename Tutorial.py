@@ -72,10 +72,13 @@ coordinates.csv: 空间转录组数据的坐标。该表格应包含三列：斑
 marker_genes.tsv [可选]: 用于运行STdGCN的基因列表。每行一个基因，不允许有表头。该文件应保存在"sc_path"中。
 ST_ground_truth.tsv [可选]: ST数据的真实标签。数据应转换为细胞类型比例。该文件应保存在"ST_path"中。
 '''
+# 数据集名称
+dataset_name = 'V1_Mouse_Brain_Sagittal_Posterior'
+
 paths = {
-    'sc_path': './data/seqfish_tsv',  # Visium + STARmap 单细胞参考
-    'ST_path': './data/seqfish_tsv',  
-    'output_path': './output/seqfish_results',  # 输出结果路径
+    'sc_path': f'./data/{dataset_name}/combined', 
+    'ST_path': f'./data/{dataset_name}/combined',
+    'output_path': f'./data/{dataset_name}/results',
 }
 
 '''
