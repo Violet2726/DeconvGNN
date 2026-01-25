@@ -12,7 +12,7 @@ def get_css():
         footer {visibility: hidden;}
         
         .main-header {
-            font-size: 1.5rem;
+            font-size: 1.45rem !important;
             font-weight: bold;
             color: #1E88E5;
             text-align: center;

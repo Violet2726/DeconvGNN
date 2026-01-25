@@ -343,3 +343,51 @@ def generate_heatmap(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame,
         dragmode='pan', margin=dict(l=0, r=0, t=30, b=0),
     )
     return fig
+
+def save_pie_chart_background(img: Image.Image, xlim: float, ylim: float, result_dir: str) -> None:
+    """
+    Save the generated pie chart background and its metadata to the result directory.
+    
+    Args:
+        img (Image.Image): The generated background image.
+        xlim (float): The limit of the x-axis.
+        ylim (float): The limit of the y-axis.
+        result_dir (str): The directory to save the files in.
+    """
+    import os
+    import json
+    
+    target_img = os.path.join(result_dir, "interactive_pie_background.png")
+    target_meta = os.path.join(result_dir, "interactive_pie_bounds.json")
+    
+    try:
+         img.save(target_img)
+         with open(target_meta, 'w') as f:
+             json.dump({'xlim': xlim, 'ylim': ylim}, f)
+    except Exception as e:
+         print(f"Warning: Failed to save background cache: {e}")
+
+def open_folder_dialog() -> Optional[str]:
+    """
+    Open a system folder selection dialog using tkinter.
+    
+    Returns:
+        Optional[str]: The selected folder path, or None if cancelled/failed.
+    """
+    try:
+        import tkinter as tk
+        from tkinter import filedialog
+        # Set up root window, hide it, and make it top-most
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes('-topmost', True)
+        
+        # Open dialog
+        folder = filedialog.askdirectory(title="选择 STdGCN 输出目录")
+        
+        # Clean up
+        root.destroy()
+        return folder if folder else None
+    except Exception as e:
+        print(f"Error opening folder dialog: {e}")
+        return None

@@ -17,10 +17,10 @@ import os
 from pathlib import Path
 
 # --- 本地模块导入 ---
-# styles: 负责所有 CSS 样式定义和注入
-import visualization_app.styles as styles
-# data_loader: 负责数据目录管理、文件读取和缓存
-import visualization_app.data_loader as data_loader
+
+import visualization_app.styles as styles # styles: 负责所有 CSS 样式定义和注入
+import visualization_app.data_loader as data_loader # data_loader: 负责数据目录管理、文件读取和缓存
+import visualization_app.utils as utils # utils: 通用绘图和辅助函数
 
 # --- 1. 页面配置 ---
 st.set_page_config(
@@ -42,7 +42,6 @@ def main():
     with st.sidebar:
         # 顶部标题
         st.markdown('<p class="main-header">🧬 STdGCN<br>空间转录组反卷积<br>可视化系统</p>', unsafe_allow_html=True)
-        st.markdown('<p class="sub-header">基于图神经网络的<br>细胞类型反卷积结果展示</p>', unsafe_allow_html=True)
         st.divider()
 
         st.header("📊 数据选择")
@@ -110,26 +109,12 @@ def main():
                 if 'temp_import_path' not in st.session_state:
                     st.session_state.temp_import_path = ""
                     
-                def open_folder_dialog():
-                    """调用 tkinter 打开系统文件夹选择框"""
-                    try:
-                        import tkinter as tk
-                        from tkinter import filedialog
-                        root = tk.Tk()
-                        root.withdraw()
-                        root.attributes('-topmost', True)
-                        folder = filedialog.askdirectory(title="选择 STdGCN 输出目录")
-                        root.destroy()
-                        return folder
-                    except:
-                        return None
-
                 col_path, col_browse = st.columns([3, 1])
                 with col_path:
                      st.text_input("路径", value=st.session_state.temp_import_path, disabled=True, label_visibility="collapsed", placeholder="请选择文件夹...")
                 with col_browse:
                     if st.button("浏览", key="btn_browse_folder", use_container_width=True):
-                        folder = open_folder_dialog()
+                        folder = utils.open_folder_dialog()
                         if folder:
                             st.session_state.temp_import_path = folder
                             st.rerun()
@@ -156,8 +141,7 @@ def main():
                         
                         with st.expander("查看数据要求", expanded=False):
                             st.markdown("""
-                            **必需文件**：`predict_result.csv`  
-                            **可选文件**：`coordinates.csv`
+                            必需文件：`predict_result.csv` `coordinates.csv`  
                             """)
                     else:
                         st.error("❌ 缺少 predict_result.csv")
@@ -208,10 +192,6 @@ def main():
         # --- Tab 1: 空间组成分布 (Plotly Scatter + 饼图背景) ---
         with tabs[0]:
             st.subheader("空间组成分布 (多色饼图)")
-            
-            # 引入依赖 (局部引入以优化启动速度)
-            import visualization_app.utils as utils
-            
             # 检查坐标数据 (逻辑需要在 data_loader 中处理吗？暂时保持在这里因为涉及 specific logic)
             # 为了更好的逻辑分离，理想情况下应该把这部分也移出去，但现在主要任务是重构app.py结构
             
@@ -241,39 +221,15 @@ def main():
                     
                 else:
                     with st.spinner("⏳ 正在绘制饼图背景..."):
-                        # 定义新函数直接调用 utils 并处理保存
-                        # ... (generate_and_save_background, 保持不变但是为了缩短代码这里略去具体定义，实际替换时需包含)
-                        def generate_and_save_background(df, cds, size, save_dir):
-                            img, bounds = utils.generate_clean_pie_chart(df, cds, size)
-                            # 尝试保存到结果目录
-                            try:
-                                img_path = os.path.join(save_dir, "interactive_pie_background.png")
-                                meta_path = os.path.join(save_dir, "interactive_pie_bounds.json")
-                                img.save(img_path)
-                                import json
-                                with open(meta_path, 'w') as f:
-                                    json.dump({'xlim': bounds[0], 'ylim': bounds[1]}, f)
-                                return img, bounds, True 
-                            except Exception as e:
-                                return img, bounds, False
-
-                        @st.cache_data(persist=True, show_spinner=False)
-                        def get_cached_background(df, cds, size, save_path_key):
-                            return utils.generate_clean_pie_chart(df, cds, size)
+                        # 使用 data_loader 缓存装饰器调用图片生成
+                        # 由于 Streamlit 缓存机制限制，我们将核心生成函数保持在 utils，
+                        # 在这里通过 data_loader 或直接调用 utils 并手动处理缓存和保存
                         
-                        # 1. 先计算
-                        bg_img, (xlim, ylim) = get_cached_background(predict_df, coords_for_plot, None, result_dir)
+                        # 1. 尝试生成并保存
+                        bg_img, (xlim, ylim) = utils.generate_clean_pie_chart(predict_df, coords_for_plot, None)
                         
-                        # 2. 检查并保存
-                        target_img = os.path.join(result_dir, "interactive_pie_background.png")
-                        if not os.path.exists(target_img):
-                             try:
-                                 bg_img.save(target_img)
-                                 import json
-                                 with open(os.path.join(result_dir, "interactive_pie_bounds.json"), 'w') as f:
-                                     json.dump({'xlim': xlim, 'ylim': ylim}, f)
-                             except:
-                                 pass
+                        # 2. 保存到文件夹
+                        utils.save_pie_chart_background(bg_img, xlim, ylim, result_dir)
                 
                 # 2. 准备交互数据 (使用 utils 封装函数)
                 # 3. 颜色映射 (与 utils 中保持一致)
@@ -309,7 +265,15 @@ def main():
                 )
                 
                 st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False})
-                st.caption("🖱️ 图例操作：单击显示/隐藏；双击独显当前类型。")
+                st.caption(
+                    """
+                    🖱️ 图例操作说明：
+                    -  单击：选中或取消选中该类型
+                    -  双击（高亮时）：只显示该类型（独显模式）
+                    -  双击（灰色时）：全选所有类型（恢复显示）
+                    ---
+                    💡 提示：点的大小直接反映置信度（指数级差异）
+                    """)
             else:
                 st.warning("无法显示交互式图表（坐标数据不匹配）")
         
@@ -339,14 +303,6 @@ def main():
         with tabs[4]:
             st.subheader("详细数据表")
             st.dataframe(predict_df, use_container_width=True, height=400)
-            
-            csv = predict_df.to_csv()
-            st.download_button(
-                label="📥 下载 CSV",
-                data=csv,
-                file_name="predict_result.csv",
-                mime="text/csv"
-            )
 
 if __name__ == "__main__":
     main()
