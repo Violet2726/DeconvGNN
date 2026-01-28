@@ -331,11 +331,18 @@ class CKGConv(nn.Module):
 
     def _calculate_optimal_chunk_size(self, x):
         """动态计算分块大小"""
-        free_mem = torch.cuda.mem_get_info()[0]  # 剩余显存
-        element_size = 4 if x.dtype == torch.float32 else 2
-        per_element = self.num_heads * self.out_dim * element_size
-        safe_size = int((free_mem * 0.8) // (per_element * 4))  # 安全系数
-        return min(safe_size, 50000)  # 上限5万边/块
+        if x.is_cuda:
+            try:
+                free_mem = torch.cuda.mem_get_info()[0]  # 剩余显存
+                element_size = 4 if x.dtype == torch.float32 else 2
+                per_element = self.num_heads * self.out_dim * element_size
+                safe_size = int((free_mem * 0.8) // (per_element * 4))  # 安全系数
+                return max(1000, min(safe_size, 50000))  # 上限5万边/块
+            except Exception:
+                return 10000
+        else:
+            # CPU模式下使用默认分块
+            return 10000
 
     def propagate_attention(self, x, pe_index, pe_val, deg=None):
         edge_index = pe_index

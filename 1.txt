@@ -1,0 +1,12 @@
+.venv/bin/python utils/download_visium_data.py --dataset coronal && \
+.venv/bin/python utils/download_visium_data.py --dataset sagittal_anterior && \
+.venv/bin/python utils/download_visium_data.py --dataset sagittal_posterior
+
+
+.venv/bin/python utils/prepare_combined_data.py --dataset V1_Adult_Mouse_Brain_Coronal_Section_1 && \
+.venv/bin/python utils/prepare_combined_data.py --dataset V1_Mouse_Brain_Sagittal_Anterior && \
+.venv/bin/python utils/prepare_combined_data.py --dataset V1_Mouse_Brain_Sagittal_Posterior
+
+.venv/bin/python train_coronal.py && \
+.venv/bin/python train_anterior.py && \
+.venv/bin/python train_posterior.py

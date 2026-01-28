@@ -330,8 +330,8 @@ results = run_STdGCN(
     GCN_paras=GCN_paras,
     fraction_pie_plot=False,  # 是否生成饼图可视化
     cell_type_distribution_plot=False,  # 是否生成细胞类型分布散点图
-    n_jobs=1,  # 使用的CPU线程数
-    GCN_device='GPU',  # 使用的设备（GPU或CPU）
+    n_jobs=-1,  # 使用的CPU线程数
+    GCN_device='CPU',  # 使用的设备（GPU或CPU）
 )
 
 # 保存结果

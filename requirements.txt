@@ -1,0 +1,14 @@
+torch==1.13.1
+torchvision
+torchaudio
+numpy>=1.22.4
+pandas==1.3.5
+scanpy==1.9.1
+matplotlib==3.5.1
+seaborn
+scikit-learn==1.0.2
+tqdm==4.64.0
+notebook
+streamlit
+scanorama==1.7.2
+scipy>=1.7.3

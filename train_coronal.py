@@ -73,7 +73,7 @@ marker_genes.tsv [可选]: 用于运行STdGCN的基因列表。每行一个基�
 ST_ground_truth.tsv [可选]: ST数据的真实标签。数据应转换为细胞类型比例。该文件应保存在"ST_path"中。
 '''
 # 数据集名称
-dataset_name = 'V1_Mouse_Brain_Sagittal_Posterior'
+dataset_name = 'V1_Adult_Mouse_Brain_Coronal_Section_1'
 
 paths = {
     'sc_path': f'./data/{dataset_name}/combined', 
@@ -330,8 +330,8 @@ results = run_STdGCN(
     GCN_paras=GCN_paras,
     fraction_pie_plot=False,  # 是否生成饼图可视化
     cell_type_distribution_plot=False,  # 是否生成细胞类型分布散点图
-    n_jobs=1,  # 使用的CPU线程数
-    GCN_device='GPU',  # 使用的设备（GPU或CPU）
+    n_jobs=-1,  # 使用的CPU线程数
+    GCN_device='CPU',  # 使用的设备（GPU或CPU）
 )
 
 # 保存结果
