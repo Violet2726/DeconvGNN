@@ -10,3 +10,7 @@
 .venv/bin/python train_coronal.py && \
 .venv/bin/python train_anterior.py && \
 .venv/bin/python train_posterior.py
+
+
+
+.venv/bin/python utils/download_visium_data.py --dataset mouse_embryo_11mm

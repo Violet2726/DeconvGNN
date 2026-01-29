@@ -184,7 +184,7 @@ def save_interactive_assets(predict, cell_type_list, coordinates, output_dir):
     if y_range == 0: y_range = 1
     aspect_ratio = x_range / y_range
     
-    dpi = 200 # Web 端不需要 300dpi，200够用且加载快
+    dpi = 800 # 提升分辨率至 600dpi 以获得更清晰的背景图
     base_size = 12
     # 纯净模式：不需要 extend_region_ratio
     fig, ax = plt.subplots(figsize=(base_size * aspect_ratio, base_size), dpi=dpi)

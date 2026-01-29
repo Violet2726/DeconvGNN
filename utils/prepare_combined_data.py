@@ -16,7 +16,7 @@ import os
 import argparse
 
 # 默认数据集
-DEFAULT_DATASET = 'V1_Adult_Mouse_Brain_Coronal_Section_1'
+DEFAULT_DATASET = 'CytAssist_11mm_FFPE_Mouse_Embryo'
 
 def main():
     parser = argparse.ArgumentParser(description='整合 Visium 和 Allen Brain 数据')

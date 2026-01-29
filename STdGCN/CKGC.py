@@ -304,8 +304,9 @@ class CKGConv(nn.Module):
 
             # 消息计算与聚合
             chunk_msg = x[chunk_edges[1]] * chunk_score
+            # FIX: 强制使用'add'聚合，避免分块平均导致数值错误
             contribution = scatter(
-                chunk_msg, chunk_edges[0], dim=0, dim_size=num_nodes, reduce=reduce
+                chunk_msg, chunk_edges[0], dim=0, dim_size=num_nodes, reduce="add"
             ).to(
                 torch.float32
             )  # 确保精度
@@ -317,6 +318,11 @@ class CKGConv(nn.Module):
             del chunk_msg, contribution, chunk_score, chunk_edges, chunk_E
 
         del max_values, sum_exp
+
+        # ==== 后处理：平均值修正 ====
+        # 只有在average=True且未启用softmax时（因为softmax隐含了归一化），才除以度数
+        if self.average and not self.softmax and deg is not None:
+             wV = wV / deg.to(wV.device).view(-1, 1, 1).clamp(min=1e-8)
 
         # ==== 后处理 ====
         if self.deg_scaler and deg is not None:
