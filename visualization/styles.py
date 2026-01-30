@@ -9,6 +9,49 @@ def get_css():
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
         
+        /* 禁止侧边栏拖拽调整宽度，但保留收起/展开功能 */
+        [data-testid="stSidebarResizeHandle"] {
+            display: none !important;
+            pointer-events: none !important;
+            cursor: default !important;
+        }
+        
+        /* 侧边栏边缘区域鼠标光标恢复默认 */
+        section[data-testid="stSidebar"]::after,
+        section[data-testid="stSidebar"] {
+            cursor: default !important;
+        }
+        
+        /* 覆盖所有可能的拖拽光标样式 */
+        [data-testid="stSidebar"] *,
+        .stSidebar * {
+            cursor: default;
+        }
+        [data-testid="stSidebar"] button,
+        [data-testid="stSidebar"] a,
+        [data-testid="stSidebar"] select,
+        [data-testid="stSidebar"] input {
+            cursor: pointer !important;
+        }
+        
+        /* 侧边栏展开时固定宽度 */
+        section[data-testid="stSidebar"][aria-expanded="true"] {
+            width: 300px !important;
+            min-width: 300px !important;
+            max-width: 300px !important;
+        }
+        
+        /* 侧边栏收起时确保主页面自动扩展 */
+        section[data-testid="stSidebar"][aria-expanded="false"] {
+            width: 0px !important;
+            min-width: 0px !important;
+        }
+        
+        /* 主页面区域自动适应 */
+        .stMainBlockContainer {
+            transition: margin-left 0.3s ease;
+        }
+        
         .main-header {
             font-size: 1.45rem !important;
             font-weight: bold;

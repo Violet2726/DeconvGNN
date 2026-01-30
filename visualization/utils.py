@@ -31,7 +31,7 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20):
     aspect_ratio = x_range / y_range
     
     # 设置高分辨率画布 (提高DPI)
-    dpi = 200
+    dpi = 600
     base_size = 12
     fig, ax = plt.subplots(figsize=(base_size * aspect_ratio, base_size), dpi=dpi)
     
@@ -162,13 +162,13 @@ def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFr
     xlim, ylim = bounds
     plot_df = coords_for_plot.copy()
     
-    # Optimize Hover text generation
-    # Use numpy for batch processing instead of pandas row-wise operations
+    # 优化悬停文本生成
+    # 使用 numpy 进行批量处理，避免 pandas 的逐行操作
     vals = predict_df.values
     cols = predict_df.columns.tolist()
     
-    # Get indices of top N elements for each row
-    # np.argsort sorts ascending, so we take the last hover_count elements and reverse them
+    # 获取每一行前 N 个最大元素的索引
+    # np.argsort 是升序排序，所以取最后 hover_count 个元素并反转
     top_n_indices = np.argsort(vals, axis=1)[:, -hover_count:][:, ::-1]
     
     hover_texts = []
@@ -178,12 +178,12 @@ def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFr
         idx_label = indices[i]
         text = f"<b>位置 {idx_label}</b><br>"
         
-        # Determine strict Top N for this row
+        # 确定该行的 Top N
         row_indices = top_n_indices[i]
         
         for col_idx in row_indices:
             proportion = vals[i, col_idx]
-            if proportion > 0: # Only show non-zero
+            if proportion > 0: # 仅显示非零比例
                 cell_type = cols[col_idx]
                 text += f"{cell_type}: {proportion:.2%}<br>"
                 
@@ -202,7 +202,7 @@ def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFr
         hovertemplate='%{hovertext}<extra></extra>'
     )
     
-    # Dummy legend - 添加所有细胞类型
+    # 虚拟图例 - 添加所有细胞类型
     for cell_type, color in color_map.items():
         fig.add_trace(
             go.Scatter(
@@ -214,7 +214,7 @@ def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFr
             )
         )
     
-    # Background image
+    # 添加背景饼图图片
     if bg_img:
         fig.add_layout_image(
             dict(
@@ -274,16 +274,16 @@ def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.Data
         subset = display_df[display_df['主要细胞类型'] == cell_type]
         if len(subset) == 0: continue
             
-        # Optimize Hover text generation using the pre-calculated global indices
-        # We need to map the subset indices back to the original integer location in predict_df
-        # Or simpler: re-calculate for this subset (it's fast enough now) or use strict lookups.
+        # 优化悬停文本生成
+        # 我们需要将子集索引映射回 predict_df 中的原始整数位置
+        # 或者更简单：为此子集重新计算（现在速度足够快）或使用严格查找
         
-        # Let's use the efficient approach on the subset
+        # 在子集上使用高效处理方法
         subset_indices = subset.index
         subset_predict_vals = predict_df.loc[subset_indices].values
         subset_cols = predict_df.columns.tolist()
         
-        # Batch sort for top N
+        # 批量排序获取 Top N
         sub_top_res = np.argsort(subset_predict_vals, axis=1)[:, -hover_count:][:, ::-1]
         
         hover_texts = []
@@ -398,26 +398,26 @@ def save_pie_chart_background(img: Image.Image, xlim: float, ylim: float, result
          with open(target_meta, 'w') as f:
              json.dump({'xlim': xlim, 'ylim': ylim}, f)
     except Exception as e:
-         print(f"Warning: Failed to save background cache: {e}")
+         print(f"警告: 无法保存背景缓存: {e}")
 
 def open_folder_dialog() -> Optional[str]:
     """弹出系统文件夹选择框 (仅本地运行有效)。"""
     try:
         import tkinter as tk
         from tkinter import filedialog
-        # Set up root window, hide it, and make it top-most
+        # 设置根窗口，隐藏并置顶
         root = tk.Tk()
         root.withdraw()
         root.attributes('-topmost', True)
         
-        # Open dialog
+        # 打开对话框
         folder = filedialog.askdirectory(title="选择 STdGCN 输出目录")
         
-        # Clean up
+        # 清理
         root.destroy()
         return folder if folder else None
     except Exception as e:
-        print(f"Error opening folder dialog: {e}")
+        print(f"打开文件夹对话框出错: {e}")
         return None
 
 def generate_and_save_interactive_assets(predict_df, coordinates, output_dir):
@@ -441,7 +441,7 @@ def generate_and_save_interactive_assets(predict_df, coordinates, output_dir):
     # 确保索引对齐
     common_index = predict_df.index.intersection(coords.index)
     if len(common_index) < len(predict_df):
-        print(f"Warning: 坐标与预测结果索引不完全匹配。交集: {len(common_index)}")
+        print(f"警告: 坐标与预测结果索引不完全匹配。交集: {len(common_index)}")
     
     predict_df = predict_df.loc[common_index]
     coords = coords.loc[common_index]
@@ -458,7 +458,7 @@ def generate_and_save_interactive_assets(predict_df, coordinates, output_dir):
         save_pie_chart_background(img, xlim, ylim, output_dir)
         print(f"交互式背景图已保存至: {output_dir}")
     except Exception as e:
-        print(f"Error generating visualization: {e}")
+        print(f"生成可视化资源时出错: {e}")
 
 def handle_visualization_generation(paths):
     """
