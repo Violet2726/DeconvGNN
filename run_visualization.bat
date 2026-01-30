@@ -22,6 +22,6 @@ echo   http://localhost:8501
 echo =========================================
 echo.
 
-"%~dp0_miniconda\python.exe" -m streamlit run visualization_app/app.py --server.port 8501
+"%~dp0_miniconda\python.exe" -m streamlit run visualization/app.py --server.port 8501
 
 pause

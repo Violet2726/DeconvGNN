@@ -18,13 +18,13 @@ from pathlib import Path
 
 # --- 本地模块导入 ---
 
-import visualization_app.styles as styles # styles: 负责所有 CSS 样式定义和注入
-import visualization_app.data_loader as data_loader # data_loader: 负责数据目录管理、文件读取和缓存
-import visualization_app.utils as utils # utils: 通用绘图和辅助函数
+import visualization.styles as styles # styles: 负责所有 CSS 样式定义和注入
+import visualization.data_loader as data_loader # data_loader: 负责数据目录管理、文件读取和缓存
+import visualization.utils as utils # utils: 通用绘图和辅助函数
 
 # --- 1. 页面配置 ---
 st.set_page_config(
-    page_title="STdGCN 可视化系统",
+    page_title="iSTdGCN-Vis",
     page_icon="🧬",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -41,7 +41,7 @@ def main():
     # === 侧边栏区域：数据选择与管理 ===
     with st.sidebar:
         # 顶部标题
-        st.markdown('<p class="main-header">🧬 STdGCN<br>空间转录组反卷积<br>可视化系统</p>', unsafe_allow_html=True)
+        st.markdown('<p class="main-header">🧬 iSTdGCN-Vis<br>空间转录组反卷积<br>可视化系统</p>', unsafe_allow_html=True)
         st.divider()
 
         st.header("📊 数据选择")
@@ -162,7 +162,7 @@ def main():
     
     # 1. 全局数据检查
     if result_dir is None:
-        st.title("欢迎使用 STdGCN 可视化系统")
+        st.title("iSTdGCN-Vis")
         st.info("👈 请在左侧 **侧边栏** 导入数据以开始使用")
         return
         

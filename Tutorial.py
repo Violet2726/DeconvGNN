@@ -16,7 +16,7 @@ import argparse
 warnings.filterwarnings("ignore")
 sys.path.append(os.getcwd())
 from STdGCN.STdGCN import run_STdGCN
-from visualization_app.utils import handle_visualization_generation
+from visualization.utils import handle_visualization_generation
 import pandas as pd
 
 secure_random = secrets.randbelow(2 ** 32)

@@ -7,7 +7,7 @@ import sys
 # Add project root to path to import STdGCN
 sys.path.append(os.getcwd())
 
-from visualization_app.utils import generate_and_save_interactive_assets
+from visualization.utils import generate_and_save_interactive_assets
 
 def generate_plot(dataset_name):
     print(f"Regenerating plot for {dataset_name}...")
