@@ -121,15 +121,24 @@ def main():
                 
                 # 确认逻辑
                 if st.session_state.temp_import_path:
-                    import_path = st.session_state.temp_import_path
-                    if os.path.exists(os.path.join(import_path, "predict_result.csv")):
-                        default_name = os.path.basename(import_path)
+                    raw_path = st.session_state.temp_import_path
+                    
+                    # 智能路径推断：检查根目录和 results 子目录
+                    valid_path = None
+                    if os.path.exists(os.path.join(raw_path, "predict_result.csv")):
+                        valid_path = raw_path
+                    elif os.path.exists(os.path.join(raw_path, "results", "predict_result.csv")):
+                        valid_path = os.path.join(raw_path, "results")
+                        
+                    if valid_path:
+                        # 默认名称使用用户选中的文件夹名，而不是 valid_path (可能是 .../results)
+                        default_name = os.path.basename(raw_path)
                         new_name = st.text_input("数据集命名", value=default_name)
                         
                         # 定义回调函数，在按钮点击时直接修改 state
                         def on_add_confirm():
                             if new_name:
-                                st.session_state.data_sources[new_name] = import_path
+                                st.session_state.data_sources[new_name] = valid_path
                                 # 自动选中新添加的数据集
                                 st.session_state.dataset_selector = new_name
                                 st.session_state.show_import = False
@@ -141,10 +150,11 @@ def main():
                         
                         with st.expander("查看数据要求", expanded=False):
                             st.markdown("""
-                            必需文件：`predict_result.csv` `coordinates.csv`  
+                            必需文件：`predict_result.csv` `coordinates.csv`
+                            （支持直接选择数据集根目录，系统会自动查找 `results` 文件夹）
                             """)
                     else:
-                        st.error("❌ 缺少 predict_result.csv")
+                        st.error(f"❌ 未找到关键文件 `predict_result.csv`。\n请确保选择的目录（或其 `results` 子目录）包含该文件。")
                 
                 st.divider()
         

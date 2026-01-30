@@ -14,62 +14,6 @@ import plotly.graph_objects as go
 # Top N 配置：只显示前 N 个最大的类别
 TOP_N_CATEGORIES = 4
 
-def draw_pie(dist: np.ndarray, xpos: float, ypos: float, size: float, 
-             colors: List[str], ax: Axes, top_n: int = TOP_N_CATEGORIES) -> Axes:
-    """
-    在 Matplotlib Axes 上绘制单个散点饼图，只显示 Top N 类别。
-
-    Args:
-        dist (np.ndarray): 细胞类型比例分布数组。
-        xpos (float): x 坐标。
-        ypos (float): y 坐标。
-        size (float): 点的大小 (area).
-        colors (List[str]): 颜色列表（与 dist 对应）。
-        ax (Axes): Matplotlib Axes 对象。
-        top_n (int): 显示的最大类别数。
-
-    Returns:
-        Axes: 更新后的 Axes 对象。
-    """
-    # 找出 Top N 的索引
-    sorted_indices = np.argsort(dist)[::-1]  # 从大到小排序的索引
-    top_indices = sorted_indices[:top_n]
-    
-    # 构建新的绘制数据：只保留 Top N
-    draw_values = []
-    draw_colors = []
-    
-    for idx in top_indices:
-        if dist[idx] > 0:  # 只绘制有值的
-            draw_values.append(dist[idx])
-            draw_colors.append(colors[idx])
-    
-    # 如果没有任何值，跳过绘制
-    if len(draw_values) == 0:
-        return ax
-    
-    # 绘制饼图
-    draw_values = np.array(draw_values)
-    # 重新归一化：将 Top N 的总和视为 100%
-    cumsum = np.cumsum(draw_values)
-    if cumsum[-1] > 0:
-        cumsum = cumsum / cumsum[-1]
-    else:
-        # 避免除以零（理论上前面 len(draw_values)==0 已经拦截了）
-        return ax
-        
-    pie = [0.0] + cumsum.tolist()
-    
-    for i, (r1, r2) in enumerate(zip(pie[:-1], pie[1:])):
-        angles = np.linspace(2 * np.pi * r1, 2 * np.pi * r2, num=30)
-        x = [0.0] + np.cos(angles).tolist()
-        y = [0.0] + np.sin(angles).tolist()
-
-        xy = np.column_stack([x, y])
-        ax.scatter([xpos], [ypos], marker=xy, s=size, c=draw_colors[i], edgecolors='none')
-        
-    return ax
-
 def generate_clean_pie_chart(predict_df, coords, point_size=20):
     """
     生成纯净的饼图背景图片（无坐标轴、无白边）
@@ -100,39 +44,80 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20):
     # 取最近邻距离的中位数作为平均间距
     avg_spacing = np.median(distances[:, 1])
     
-    # 理想情况下，点的大小应略小于间距，防止重叠
-    # Matplotlib 的 scatter s 参数也是面积，关系比较复杂
-    # 经过经验调整的公式：将数据坐标系下的"半径"转换为图形坐标系下的"点大小"
-    
-    # 1. 计算 ax 的总像素宽度
-    bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
-    width_px = bbox.width * dpi
-    
-    # 2. 计算每个数据单位对应的像素数
-    px_per_unit = width_px / x_range
-    
-    # 3. 设定点的半径为平均间距的 0.45 倍 (直径0.9，留一点缝隙)
-    radius_unit = avg_spacing * 0.42
-    
-    # 4. 转换为 s 参数 (area in points^2)
-    # s = (radius_in_points * 2) ^ 2
-    # 1 inch = 72 points
-    radius_px = radius_unit * px_per_unit
-    radius_points = radius_px * (72 / dpi)
-    calculated_s = (radius_points * 2) ** 2
-    
-    # 允许手动覆盖，或者使用自动计算值
-    final_size = calculated_s if point_size is None or point_size == 20 else point_size
-    
-    print(f"  ℹ️ [Auto-Size] 平均间距: {avg_spacing:.4f}, 计算点大小(s): {calculated_s:.2f}")
+    # 使用 PatchCollection 优化绘图性能
+    # 相比于循环调用 scatter，这将大幅减少渲染开销
+    from matplotlib.patches import Wedge
+    from matplotlib.collections import PatchCollection
 
+    # 直接使用数据单位的半径 (之前已经利用 s 计算过了，这里取回原始逻辑)
+    # radius_unit = avg_spacing * 0.42
+    # 我们重新定义一下半径，确保与之前的逻辑一致
+    # 之前: radius_unit = avg_spacing * 0.42
+    radius = avg_spacing * 0.42
+    
+    print(f"  ℹ️ [Performance] 使用 PatchCollection 批量渲染优化 (半径: {radius:.4f})")
+    
+    wedges = []
+    
     # 预计算数据
     predict_values = predict_df.values
     x_coords = coords['x'].values
     y_coords = coords['y'].values
     
-    for i in range(len(predict_df)):
-        draw_pie(predict_values[i], x_coords[i], y_coords[i], final_size, colors, ax)
+    # 引入 tqdm 显示进度
+    try:
+        from tqdm import tqdm
+        iterator = tqdm(range(len(predict_df)), desc="构建图形对象", unit="spot")
+    except ImportError:
+        iterator = range(len(predict_df))
+
+    # 全局 Top N
+    top_n = TOP_N_CATEGORIES
+
+    for i in iterator:
+        # 1. 获取当前点的分布和坐标
+        dist = predict_values[i]
+        xc, yc = x_coords[i], y_coords[i]
+        
+        # 2. 计算 Top N
+        # 找出 Top N 的索引
+        if np.all(dist == 0): continue
+        
+        sorted_indices = np.argsort(dist)[::-1]
+        top_indices = sorted_indices[:top_n]
+        
+        current_vals = []
+        current_colors = []
+        for idx in top_indices:
+            if dist[idx] > 0:
+                current_vals.append(dist[idx])
+                current_colors.append(colors[idx])
+        
+        if not current_vals: continue
+        
+        # 3. 归一化并构建扇形
+        total = sum(current_vals)
+        # 起始角度 (0度对应X轴正方向)
+        current_angle = 0.0
+        
+        for val, color in zip(current_vals, current_colors):
+            # 计算扇区跨度 (角度)
+            ratio = val / total
+            theta = ratio * 360.0
+            
+            # 创建扇形 Wedge((x,y), r, start, end)
+            # 注意: Wedge 默认接受度数
+            w = Wedge((xc, yc), radius, current_angle, current_angle + theta, facecolor=color, linewidth=0)
+            wedges.append(w)
+            
+            current_angle += theta
+
+    # 4. 一次性添加到 Axes
+    if wedges:
+        print(f"  ℹ️ [Rendering] 正在渲染 {len(wedges)} 个扇形图层...")
+        # match_original=True 确保保留每个 Wedge 的颜色
+        p = PatchCollection(wedges, match_original=True)
+        ax.add_collection(p)
         
     # 设置坐标轴范围与 Plotly 严格一致
     # 增加一点点 padding 防止边缘被切
@@ -192,15 +177,33 @@ def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFr
     xlim, ylim = bounds
     plot_df = coords_for_plot.copy()
     
-    # Hover text
+    # Optimize Hover text generation
+    # Use numpy for batch processing instead of pandas row-wise operations
+    vals = predict_df.values
+    cols = predict_df.columns.tolist()
+    
+    # Get indices of top N elements for each row
+    # np.argsort sorts ascending, so we take the last hover_count elements and reverse them
+    top_n_indices = np.argsort(vals, axis=1)[:, -hover_count:][:, ::-1]
+    
     hover_texts = []
-    for idx in range(len(predict_df)):
-        row = predict_df.iloc[idx]
-        sorted_row = row.sort_values(ascending=False)
-        text = f"<b>位置 {predict_df.index[idx]}</b><br>"
-        for cell_type, proportion in sorted_row.head(hover_count).items():
-            text += f"{cell_type}: {proportion:.2%}<br>"
+    indices = predict_df.index.tolist()
+    
+    for i in range(len(predict_df)):
+        idx_label = indices[i]
+        text = f"<b>位置 {idx_label}</b><br>"
+        
+        # Determine strict Top N for this row
+        row_indices = top_n_indices[i]
+        
+        for col_idx in row_indices:
+            proportion = vals[i, col_idx]
+            if proportion > 0: # Only show non-zero
+                cell_type = cols[col_idx]
+                text += f"{cell_type}: {proportion:.2%}<br>"
+                
         hover_texts.append(text)
+        
     plot_df['hover_text'] = hover_texts
     
     fig = px.scatter(
@@ -225,8 +228,6 @@ def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFr
                 showlegend=True
             )
         )
-    
-
     
     # Background image
     if bg_img:
@@ -281,13 +282,31 @@ def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.Data
         subset = display_df[display_df['主要细胞类型'] == cell_type]
         if len(subset) == 0: continue
             
+        # Optimize Hover text generation using the pre-calculated global indices
+        # We need to map the subset indices back to the original integer location in predict_df
+        # Or simpler: re-calculate for this subset (it's fast enough now) or use strict lookups.
+        
+        # Let's use the efficient approach on the subset
+        subset_indices = subset.index
+        subset_predict_vals = predict_df.loc[subset_indices].values
+        subset_cols = predict_df.columns.tolist()
+        
+        # Batch sort for top N
+        sub_top_res = np.argsort(subset_predict_vals, axis=1)[:, -hover_count:][:, ::-1]
+        
         hover_texts = []
-        for idx in subset.index:
-            row = predict_df.loc[idx]
-            sorted_row = row.sort_values(ascending=False)
-            text = f"<b>位置 {idx}</b><br>主要类型: {cell_type} ({subset.loc[idx, '主要比例']:.2%})<br>"
-            for ct, prop in sorted_row.head(hover_count).items():
-                text += f"{ct}: {prop:.2%}<br>"
+        for i, idx_val in enumerate(subset_indices):
+            major_type = cell_type # Known from loop
+            major_prop = subset.loc[idx_val, '主要比例']
+            
+            text = f"<b>位置 {idx_val}</b><br>主要类型: {major_type} ({major_prop:.2%})<br>"
+            
+            row_indices = sub_top_res[i]
+            for col_idx in row_indices:
+                proportion = subset_predict_vals[i, col_idx]
+                if proportion > 0:
+                     ct = subset_cols[col_idx]
+                     text += f"{ct}: {proportion:.2%}<br>"
             hover_texts.append(text)
 
         fig.add_trace(go.Scatter(
@@ -415,3 +434,88 @@ def open_folder_dialog() -> Optional[str]:
     except Exception as e:
         print(f"Error opening folder dialog: {e}")
         return None
+
+def generate_and_save_interactive_assets(predict_df, coordinates, output_dir):
+    """
+    生成并保存交互式可视化所需的背景图和元数据。
+    调用 generate_clean_pie_chart_top_n 生成 Top 4 饼图背景。
+    供 Tutorial.py 等外部脚本调用。
+    
+    Args:
+        predict_df: 预测结果 DataFrame (index=Barcodes, columns=Cell Types)
+        coordinates: 坐标 DataFrame (index=Barcodes, columns=['X', 'Y'])
+        output_dir: 结果输出目录
+    """
+    import os
+    
+    print(f"正在生成交互式可视化背景图 (Top {TOP_N_CATEGORIES})...")
+    
+    # 确保坐标列名匹配
+    # generate_clean_pie_chart_top_n 期望 coordinates 有 'x', 'y' 列
+    coords = coordinates.copy()
+    if 'coor_X' in coords.columns:
+        coords = coords.rename(columns={'coor_X': 'x', 'coor_Y': 'y'})
+    elif 'x' not in coords.columns:
+        # 假设前两列是 x, y
+        coords.columns = ['x', 'y']
+        
+    # 确保索引对齐
+    common_index = predict_df.index.intersection(coords.index)
+    if len(common_index) < len(predict_df):
+        print(f"Warning: 坐标与预测结果索引不完全匹配。交集: {len(common_index)}")
+    
+    predict_df = predict_df.loc[common_index]
+    coords = coords.loc[common_index]
+
+    # 生成图片
+    # point_size=None 让其自动计算
+    try:
+        img, (xlim, ylim) = generate_clean_pie_chart(predict_df, coords, point_size=None)
+        
+        # 保存
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+            
+        save_pie_chart_background(img, xlim, ylim, output_dir)
+        print(f"交互式背景图已保存至: {output_dir}")
+    except Exception as e:
+        print(f"Error generating visualization: {e}")
+
+def handle_visualization_generation(paths):
+    """
+    处理可视化的完整流程:
+    1. 检查预测结果和坐标文件是否存在
+    2. 读取数据
+    3. 调用 generate_and_save_interactive_assets 生成资源
+    
+    Args:
+        paths: 包含 'output_path' 和 'ST_path' 的字典
+    """
+    import os
+    import pandas as pd
+    
+    print("\n" + "="*60)
+    print("[Visualization] 生成交互式可视化资源 (Top 4 饼图)...")
+    print("="*60)
+    
+    res_path = os.path.join(paths['output_path'], 'predict_result.csv')
+    coor_path = os.path.join(paths['ST_path'], 'coordinates.csv')
+    
+    if os.path.exists(res_path) and os.path.exists(coor_path):
+        try:
+            # 读取预测结果和坐标
+            pred_df = pd.read_csv(res_path, index_col=0)
+            # 处理坐标文件读取，有的包含表头有的不包含，这里假设标准格式
+            coord_df = pd.read_csv(coor_path, index_col=0)
+            
+            # 调用生成函数
+            generate_and_save_interactive_assets(pred_df, coord_df, paths['output_path'])
+            print("[SUCCESS] 可视化资源生成完成！")
+        except Exception as e:
+            print(f"[ERROR] 可视化生成失败: {e}")
+            import traceback
+            traceback.print_exc()
+    else:
+        print(f"[WARN] 找不到结果文件或坐标文件，跳过可视化生成。")
+        print(f"  预测结果: {res_path} ({'存在' if os.path.exists(res_path) else '缺失'})")
+        print(f"  坐标文件: {coor_path} ({'存在' if os.path.exists(coor_path) else '缺失'})")

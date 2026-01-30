@@ -14,8 +14,10 @@ import secrets
 import argparse
 
 warnings.filterwarnings("ignore")
-# sys.path.append(os.getcwd())
+sys.path.append(os.getcwd())
 from STdGCN.STdGCN import run_STdGCN
+from visualization_app.utils import handle_visualization_generation
+import pandas as pd
 
 secure_random = secrets.randbelow(2 ** 32)
 
@@ -77,6 +79,8 @@ ST_ground_truth.tsv [可选]: ST数据的真实标签。数据应转换为细胞
 parser = argparse.ArgumentParser(description='STdGCN 训练/推理脚本')
 parser.add_argument('--dataset', type=str, default='CytAssist_11mm_FFPE_Mouse_Embryo', 
                     help='要运行的数据集名称 (例如: V1_Mouse_Brain_Sagittal_Posterior)')
+parser.add_argument('--generate_plot', type=bool, default=True, 
+                    help='训练完成后是否生成用于Web可视化的Top-4饼图背景')
 args = parser.parse_args()
 
 # 数据集名称
@@ -343,3 +347,7 @@ results = run_STdGCN(
 
 # 保存结果
 results.write_h5ad(os.path.join(paths['output_path'], 'results.h5ad'))
+
+# [Visualization] 生成用于 Web 可视化的资源
+if args.generate_plot:
+    handle_visualization_generation(paths)

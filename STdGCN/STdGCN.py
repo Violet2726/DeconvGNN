@@ -10,7 +10,7 @@ from .utils import *
 from .autoencoder import *
 from .adjacency_matrix import *
 from .GCN import *
-from .visualization import *
+
 
    
 
@@ -328,18 +328,6 @@ def run_STdGCN(paths,
     pred_use = np.round(output1.exp().detach()[:test_len].cpu().numpy(), decimals=4)
     cell_type_list = cell_types
     coordinates = ST_adata_filter_norm.obs[['coor_X', 'coor_Y']]
-    
-    if fraction_pie_plot == True:
-        plot_frac_results(pred_use, cell_type_list, coordinates, point_size=300, size_coefficient=0.0009, file_name=output_path+'/predict_results_pie_plot.jpg', if_show=False)
-    
-    # 自动生成 Web 端交互式背景资源
-    try:
-        save_interactive_assets(pred_use, cell_type_list, coordinates, output_path)
-    except Exception as e:
-        print(f"Warning: Failed to generate interactive web assets: {e}")
-
-    if cell_type_distribution_plot == True:
-        plot_scatter_by_type(pred_use, cell_type_list, coordinates, point_size=300, file_path=output_path, if_show=False)
     
     ST_adata_filter_norm.obsm['predict_result'] = np.exp(output1[:test_len].detach().numpy())
     

@@ -7,7 +7,7 @@ import sys
 # Add project root to path to import STdGCN
 sys.path.append(os.getcwd())
 
-from STdGCN.visualization import save_interactive_assets
+from visualization_app.utils import generate_and_save_interactive_assets
 
 def generate_plot(dataset_name):
     print(f"Regenerating plot for {dataset_name}...")
@@ -38,16 +38,10 @@ def generate_plot(dataset_name):
     predict_df = predict_df.loc[common_indices]
     coor_df = coor_df.loc[common_indices]
     
-    predict_vals = predict_df.values
-    
-    # Prepare inputs for save_interactive_assets
-    coordinates = coor_df.copy()
-    coordinates.columns = ['coor_X', 'coor_Y'] 
     
     try:
-        save_interactive_assets(predict_vals, cell_type_list=cell_types, coordinates=coordinates, output_dir=results_dir)
+        generate_and_save_interactive_assets(predict_df, coor_df, results_dir)
         print("Success! High-resolution plot generated.")
-        print(f"Image saved to: {os.path.join(results_dir, 'interactive_pie_background.png')}")
     except Exception as e:
         print(f"Error generating plot: {e}")
 
