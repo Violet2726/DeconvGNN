@@ -1,13 +1,6 @@
 """
-整合 Visium 空间数据与 Allen Brain 单细胞数据
-为 STdGCN 准备训练数据
-
-输入数据:
-1. 单细胞参考: data/ref_mouse_cortex_allen (已有的高质量参考)
-2. 空间数据:   data/[DATASET_NAME] (默认 V1_Adult_Mouse_Brain_Coronal_Section_1)
-
-输出数据:
-- data/[DATASET_NAME]/combined/
+整合 Visium 空间数据与 Allen Brain 单细胞数据，为 STdGCN 准备训练数据。
+输入数据位于 data/ 目录下，输出至 combined/ 子目录。
 """
 import pandas as pd
 import numpy as np
@@ -29,11 +22,9 @@ def main():
     # ============================================================
     st_source = args.dataset
     
-    # 输入目录 - 固定使用现有的高质量参考目录
+    # 配置输入与输出目录
     sc_dir = "data/ref_mouse_cortex_allen"  
     st_dir = f"data/{st_source}"
-    
-    # 输出目录 (直接在空间数据目录下创建 combined 子目录)
     output_dir = f"data/{st_source}/combined"
     os.makedirs(output_dir, exist_ok=True)
     
@@ -192,7 +183,7 @@ def main():
     st_coords.to_csv(os.path.join(output_dir, "coordinates.csv"))
     
     print("\n" + "=" * 60)
-    print("[SUCCESS] 完成！")
+    print("[成功] 完成！")
     print(f"数据已保存在: {output_dir}")
     print("=" * 60)
     print(f"后续操作提醒: 训练脚本 Tutorial.py 应指向上述目录。")

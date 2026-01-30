@@ -2,9 +2,7 @@
 import streamlit as st
 
 def get_css():
-    """
-    Get the custom CSS styles for the application.
-    """
+    """返回应用自定义 CSS 样式字符串。"""
     return """
     <style>
         /* 隐藏 Streamlit 默认菜单和水印，保留侧边栏按钮 */
@@ -41,7 +39,5 @@ def get_css():
     """
 
 def inject_custom_css():
-    """
-    Inject custom CSS into the Streamlit app.
-    """
+    """向 Streamlit 应用注入自定义 CSS。"""
     st.markdown(get_css(), unsafe_allow_html=True)

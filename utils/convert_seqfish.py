@@ -1,13 +1,13 @@
-# 转换 seqfish+ 数据为 TSV 格式
+"""将 seqfish+ 数据转换为 TSV 格式"""
 import scanpy as sc
 import pandas as pd
 import os
 
-print("[INFO] 加载 seqFISH+ 单细胞数据（约3.6GB，请耐心等待）...")
+print("[信息] 加载 seqFISH+ 单细胞数据（约3.6GB，请耐心等待）...")
 sc_adata = sc.read_h5ad('data/seqfish+/seqfish+_sc_adata.h5ad')
 print(f"  单细胞数据维度: {sc_adata.shape}")
 
-print("[INFO] 加载 seqFISH+ 空间数据...")
+print("[信息] 加载 seqFISH+ 空间数据...")
 st_adata = sc.read_h5ad('data/seqfish+/seqfish+_st_adata.h5ad')
 print(f"  空间数据维度: {st_adata.shape}")
 
@@ -16,7 +16,7 @@ output_dir = 'data/seqfish_tsv'
 os.makedirs(output_dir, exist_ok=True)
 
 # 保存单细胞表达矩阵
-print("[INFO] 保存 sc_data.tsv...")
+print("[信息] 保存 sc_data.tsv...")
 sc_df = pd.DataFrame(
     sc_adata.X.toarray() if hasattr(sc_adata.X, 'toarray') else sc_adata.X,
     index=sc_adata.obs_names, 
@@ -25,7 +25,7 @@ sc_df = pd.DataFrame(
 sc_df.to_csv(f'{output_dir}/sc_data.tsv', sep='\t')
 
 # 保存单细胞标签
-print("[INFO] 保存 sc_label.tsv...")
+print("[信息] 保存 sc_label.tsv...")
 cell_type_col = None
 for col in ['cell_type', 'celltype', 'CellType', 'cluster', 'leiden', 'louvain', 'Cell_class']:
     if col in sc_adata.obs.columns:
@@ -41,7 +41,7 @@ sc_label = pd.DataFrame({'cell': sc_adata.obs_names, 'cell_type': sc_adata.obs[c
 sc_label.to_csv(f'{output_dir}/sc_label.tsv', sep='\t', index=False)
 
 # 保存空间表达矩阵
-print("[INFO] 保存 ST_data.tsv...")
+print("[信息] 保存 ST_data.tsv...")
 st_df = pd.DataFrame(
     st_adata.X.toarray() if hasattr(st_adata.X, 'toarray') else st_adata.X,
     index=st_adata.obs_names, 
@@ -50,7 +50,7 @@ st_df = pd.DataFrame(
 st_df.to_csv(f'{output_dir}/ST_data.tsv', sep='\t')
 
 # 保存坐标
-print("[INFO] 保存 coordinates.csv...")
+print("[信息] 保存 coordinates.csv...")
 if 'spatial' in st_adata.obsm:
     coords = pd.DataFrame(st_adata.obsm['spatial'], index=st_adata.obs_names, columns=['x', 'y'])
 else:
@@ -69,7 +69,7 @@ else:
 
 coords.to_csv(f'{output_dir}/coordinates.csv')
 
-print(f"\n[SUCCESS] 数据转换完成！")
+print(f"\n[成功] 数据转换完成！")
 print(f"文件保存到: {output_dir}/")
 print(f"  - sc_data.tsv")
 print(f"  - sc_label.tsv")

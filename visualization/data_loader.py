@@ -11,14 +11,10 @@ DATA_DIRS: Dict[str, str] = {}
 def load_results(result_dir: str) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]:
     """
     加载反卷积结果和坐标文件。
-
-    Args:
-        result_dir (str): 结果数据的根目录路径。
+    自动在结果目录、父目录及 combined 子目录中搜索 coordinates.csv。
 
     Returns:
-        Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]: 
-            - predict_df: 预测结果 DataFrame (index=位置, columns=细胞类型)
-            - coords: 坐标信息 DataFrame (index=位置, columns=['x', 'y'])
+        (predict_df, coords): 预测结果与坐标数据 DataFrame。若加载失败返回 (None, None)。
     """
     predict_path = os.path.join(result_dir, "predict_result.csv")
     if not os.path.exists(predict_path):
@@ -52,13 +48,5 @@ def load_results(result_dir: str) -> Tuple[Optional[pd.DataFrame], Optional[pd.D
     return predict_df, coords
 
 def get_cell_types(predict_df: pd.DataFrame) -> List[str]:
-    """
-    获取预测结果中的细胞类型列表。
-
-    Args:
-        predict_df (pd.DataFrame): 预测结果数据框。
-
-    Returns:
-        List[str]: 细胞类型名称列表。
-    """
+    """提取预测结果中的细胞类型列表。"""
     return predict_df.columns.tolist()

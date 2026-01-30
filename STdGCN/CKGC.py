@@ -75,8 +75,8 @@ def _wn_linear(l):
 
 class ResidualLayer(nn.Module):
     """
-    Residual Layer;
-    - support rezero and layerscale
+    残差层 (Residual Layer);
+    - 支持 rezero 和 layerscale 机制
     """
 
     def __init__(self, rezero=False, layerscale=False, alpha=0.1, dim=1):
@@ -110,8 +110,8 @@ class ResidualLayer(nn.Module):
 
 class CKGConv(nn.Module):
     """
-    Simplified CKGConv
-    > no deg-scaler for now
+    简化版 CKGConv
+    > 暂不包含 deg-scaler
     """
 
     def __init__(self, ckgc_p: CKGConvParameters):
@@ -404,7 +404,7 @@ class GraphDataBuilder:
             if_weight=False,
             device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu"),
     ):
-        # Determine max node index across all graph types
+        # 确定所有图类型中的最大节点索引
         max_node = 0
         for df in df_dict.values():
             if isinstance(df, pd.DataFrame):
@@ -418,31 +418,31 @@ class GraphDataBuilder:
 
         self.graphs = {}
         for gtype, graph_data in df_dict.items():
-            # Handle tensor input (adjacency matrix)
+            # 处理 Tensor 输入 (邻接矩阵)
             if torch.is_tensor(graph_data):
                 assert graph_data.dim() == 2 and graph_data.size(0) == graph_data.size(1), \
                     "Tensor must be square adjacency matrix"
                 assert graph_data.size(0) <= self.node_num, \
                     f"Adjacency matrix size {graph_data.size(0)} exceeds node_num {self.node_num}"
 
-                # Extract edges from adjacency matrix
+                # 提取邻接矩阵的边索引
                 indices = torch.nonzero(graph_data != 0).t()
                 row, col = indices[0], indices[1]
 
-                # Extract weights if requested, else use 1s
+                # 如果没有权重，默认设为 1
                 if if_weight:
                     edge_attr = graph_data[row, col].float()
                 else:
                     edge_attr = torch.ones(row.size(0), dtype=torch.float)
 
-            # Handle DataFrame input (original behavior)
+            # 处理 DataFrame 输入 (兼容旧版本行为)
             elif isinstance(graph_data, pd.DataFrame):
                 row = torch.LongTensor(graph_data["Cell1"].values)
                 col = torch.LongTensor(graph_data["Cell2"].values)
 
-                # Node index validation
+                # 节点索引校验
                 assert (row.max() < self.node_num and col.max() < self.node_num), \
-                    f"Node index exceeds {self.node_num - 1} in graph type {gtype}"
+                    f"图类型 {gtype} 中的节点索引超出了 {self.node_num - 1}"
 
                 if "Distance" in graph_data.columns and if_weight:
                     edge_attr = torch.FloatTensor(graph_data["Distance"].values)

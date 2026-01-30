@@ -15,6 +15,10 @@ def full_block(in_features, out_features, p_drop):
         )
 
 class autoencoder(nn.Module):
+    """
+    用于数据降维的自编码器 (AutoEncoder) 模型。
+    包含编码器 (Encoder) 和解码器 (Decoder) 两部分。
+    """
     def __init__(self, x_size, hidden_size, embedding_size, p_drop=0):
         super(autoencoder, self).__init__()
         
@@ -36,6 +40,9 @@ class autoencoder(nn.Module):
         return en, de, [self.encoder, self.decoder]
 
 def auto_train(model, epoch_n, loss_fn, optimizer, data, cpu_num=-1, device='GPU'):
+    """
+    训练自编码器模型，返回编码后的低维特征。
+    """
     
     if cpu_num == -1:
         cores = multiprocessing.cpu_count()

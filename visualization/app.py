@@ -1,13 +1,6 @@
 """
-STdGCN 空间转录组反卷积可视化系统
-主应用入口文件
-
-此文件负责组织主要的 Streamlit 界面布局和交互逻辑。
-包含：
-1. 页面配置与初始化
-2. 全局样式注入 (from styles.py)
-3. 侧边栏：数据集选择与管理 (from data_loader.py)
-4. 主内容区：数据展示与可视化选项卡
+STdGCN 可视化系统入口
+组织 Streamlit 界面布局与交互逻辑，包括侧边栏数据管理与主区域图表展示。
 """
 
 import streamlit as st
@@ -16,11 +9,10 @@ import numpy as np
 import os
 from pathlib import Path
 
-# --- 本地模块导入 ---
-
-import visualization.styles as styles # styles: 负责所有 CSS 样式定义和注入
-import visualization.data_loader as data_loader # data_loader: 负责数据目录管理、文件读取和缓存
-import visualization.utils as utils # utils: 通用绘图和辅助函数
+# --- 本地模块 ---
+import visualization.styles as styles
+import visualization.data_loader as data_loader
+import visualization.utils as utils
 
 # --- 1. 页面配置 ---
 st.set_page_config(
@@ -202,18 +194,15 @@ def main():
         # --- Tab 1: 空间组成分布 (Plotly Scatter + 饼图背景) ---
         with tabs[0]:
             st.subheader("空间组成分布 (多色饼图)")
-            # 检查坐标数据 (逻辑需要在 data_loader 中处理吗？暂时保持在这里因为涉及 specific logic)
-            # 为了更好的逻辑分离，理想情况下应该把这部分也移出去，但现在主要任务是重构app.py结构
-            
-            # 使用 data_loader 提供的 coords 即可，它已经处理好了查找逻辑
+            # 数据准备
             coords_for_plot = coords
 
-            # 添加设置栏
+            # 设置栏
             with st.expander("🛠️ 设置", expanded=False):
                 hover_count_tab1 = st.slider("悬停显示前 N 种细胞", 3, len(cell_types), min(6, len(cell_types)), key="tab1_hover")
 
             if coords_for_plot is not None:
-                # 1. 尝试加载/生成背景图
+                # 1. 加载或生成背景图
                 bg_img = None
                 xlim, ylim = None, None
                 
@@ -228,21 +217,13 @@ def main():
                         metadata = json.load(f)
                         xlim = metadata['xlim']
                         ylim = metadata['ylim']
-                    
                 else:
                     with st.spinner("⏳ 正在绘制饼图背景..."):
-                        # 使用 data_loader 缓存装饰器调用图片生成
-                        # 由于 Streamlit 缓存机制限制，我们将核心生成函数保持在 utils，
-                        # 在这里通过 data_loader 或直接调用 utils 并手动处理缓存和保存
-                        
-                        # 1. 尝试生成并保存
+                        # 如果没有预计算的背景，现场生成并缓存
                         bg_img, (xlim, ylim) = utils.generate_clean_pie_chart(predict_df, coords_for_plot, None)
-                        
-                        # 2. 保存到文件夹
                         utils.save_pie_chart_background(bg_img, xlim, ylim, result_dir)
                 
-                # 2. 准备交互数据 (使用 utils 封装函数)
-                # 3. 颜色映射 (与 utils 中保持一致)
+                # 2. 生成交互式图表
                 cell_type_color_map = utils.get_color_map(predict_df.columns.tolist())
 
                 fig = utils.generate_plotly_scatter(
@@ -281,8 +262,6 @@ def main():
                     -  单击：选中或取消选中该类型
                     -  双击（高亮时）：只显示该类型（独显模式）
                     -  双击（灰色时）：全选所有类型（恢复显示）
-                    ---
-                    💡 提示：点的大小直接反映置信度（指数级差异）
                     """)
             else:
                 st.warning("无法显示交互式图表（坐标数据不匹配）")

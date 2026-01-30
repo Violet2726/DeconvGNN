@@ -1,3 +1,7 @@
+"""
+STdGCN 核心工具库
+提供数据预处理、标记基因筛选、伪斑点生成、数据整合 (Combat/Scanorama/MNN) 等关键功能。
+"""
 import torch
 import torch.nn as nn
 import numpy as np
@@ -27,6 +31,10 @@ def ST_preprocess(ST_exp,
                   hvg_min_disp=0.5,
                   highly_variable_gene_num=None
                  ):
+    """
+    对空间转录组或单细胞数据进行标准的预处理流程：
+    标准化 -> 对数变换 -> 高变基因筛选 -> 回归协变量 -> 缩放。
+    """
     
     adata = ST_exp.copy()
     
@@ -74,6 +82,10 @@ def find_marker_genes(sc_exp,
                       min_within_group_fraction_threshold = 0.7,
                       max_between_group_fraction_threshold = 0.3,
                      ):
+    """
+    从单细胞参考数据中筛选各细胞类型的标记基因 (Marker Genes)。
+    支持 Wilcoxon 秩和检验和 Logistic Regression。
+    """
 
     if preprocess == True:
         sc_adata_marker_gene = ST_preprocess(sc_exp.copy(), 
@@ -122,7 +134,7 @@ def find_marker_genes(sc_exp,
             gene_dict[i] = gene_table[i].values.tolist()
         gene_list = list(set([item   for sublist in gene_table.values.tolist()   for item in sublist]))
     else:
-        print("marker_gene_method should be 'logreg' or 'wilcoxon'")
+        print("参数 marker_gene_method 必须为 'logreg' 或 'wilcoxon'。")
     
     return gene_list, gene_dict
 
@@ -134,6 +146,10 @@ def generate_a_spot(sc_exp,
                     max_cell_types_in_spot,
                     generation_method,
                    ):
+    """
+    生成单个模拟伪斑点 (Pseudo-spot)。
+    从单细胞数据中随机抽取细胞进行聚合。
+    """
     
     if generation_method == 'cell':
         cell_num = random.randint(min_cell_number_in_spot, max_cell_number_in_spot)
@@ -160,7 +176,7 @@ def generate_a_spot(sc_exp,
             
         return sc_exp_filter[picked_cells]
     else:
-        print('generation_method should be "cell" or "celltype" ')
+        print('参数 generation_method 必须为 "cell" 或 "celltype"。')
 
         
 
@@ -217,11 +233,14 @@ def pseudo_spot_generation(sc_exp,
                            generation_method,
                            n_jobs=-1  # 保留参数但不使用
                            ):
+    """
+    批量生成伪斑点数据集，用于训练模型。
+    """
     cell_type_num = len(sc_exp.obs['cell_type'].unique())
 
     # 直接使用循环替代线程池
     generated_spots = []
-    for i in tqdm(range(spot_num), desc='Generating pseudo-spots'):
+    for i in tqdm(range(spot_num), desc='正在生成模拟伪斑点 (Generating pseudo-spots)'):
         spot = generate_a_spot(
             sc_exp=sc_exp,
             min_cell_number_in_spot=min_cell_number_in_spot,
@@ -270,6 +289,10 @@ def data_integration(real,
                      cpu_num=-1,
                      AE_device='GPU'
                     ):
+    """
+    整合真实空间数据和伪斑点数据，进行去批次效应 (Batch Correction) 和降维。
+    支持方法: MNN, Combat, Scanorama。
+    """
     
     if batch_removal_method == 'mnn':
         mnn = sc.external.pp.mnn_correct(pseudo, real, svd_dim=dim, k=50, batch_key='real_pseudo', save_raw=True, var_subset=None)

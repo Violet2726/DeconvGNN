@@ -1,3 +1,7 @@
+"""
+STdGCN 图神经网络模型定义与训练流程
+包含 conGCN 模型架构定义、前向传播逻辑以及模型训练循环函数 conGCN_train。
+"""
 import torch
 import torch.nn as nn
 import numpy as np
@@ -262,14 +266,14 @@ def conGCN_train(
 ):
     if GCN_device == "CPU":
         device = torch.device("cpu")
-        print("Use CPU as device.")
+        print("使用 CPU 进行计算。")
     else:
         if torch.cuda.is_available():
             device = torch.device("cuda")
-            print("Use GPU as device.")
+            print("使用 GPU 进行计算。")
         else:
             device = torch.device("cpu")
-            print("Use CPU as device.")
+            print("使用 CPU 进行计算。")
 
     if cpu_num == -1:
         cores = multiprocessing.cpu_count()
@@ -328,14 +332,14 @@ def conGCN_train(
         if epoch % print_epoch_step == 0:
             print("******************************************")
             print(
-                "Epoch {}/{}".format(epoch + 1, epoch_n),
-                "loss_train: {:.4f}".format(loss_train1.item()),
-                "loss_val: {:.4f}".format(loss_val1.item()),
+                "轮数 {}/{}".format(epoch + 1, epoch_n),
+                "训练集损失: {:.4f}".format(loss_train1.item()),
+                "验证集损失: {:.4f}".format(loss_val1.item()),
                 end="\t",
             )
             if load_test_groundtruth == True:
-                print("Test loss= {:.4f}".format(loss_test1.item()), end="\t")
-            print("time: {:.4f}s".format(time.time() - time_open))
+                print("测试集损失= {:.4f}".format(loss_test1.item()), end="\t")
+            print("用时: {:.4f}s".format(time.time() - time_open))
         para_list.append(paras.copy())
         for i in paras.keys():
             para_list[-1][i] = copy.deepcopy(para_list[-1][i])
@@ -365,16 +369,16 @@ def conGCN_train(
             except:
                 scheduler.step(metrics=loss_val1)
 
-    print("***********************Final Loss***********************")
+    print("*********************** 最终损失 (Final Loss) ***********************")
     print(
-        "Epoch {}/{}".format(epoch + 1, epoch_n),
-        "loss_train: {:.4f}".format(loss_train1.item()),
-        "loss_val: {:.4f}".format(loss_val1.item()),
+        "轮数 {}/{}".format(epoch + 1, epoch_n),
+        "训练集损失: {:.4f}".format(loss_train1.item()),
+        "验证集损失: {:.4f}".format(loss_val1.item()),
         end="\t",
     )
     if load_test_groundtruth == True:
-        print("Test loss= {:.4f}".format(loss_test1.item()), end="\t")
-    print("time: {:.4f}s".format(time.time() - time_open))
+        print("测试集损失= {:.4f}".format(loss_test1.item()), end="\t")
+    print("用时: {:.4f}s".format(time.time() - time_open))
 
     torch.cuda.empty_cache()
 

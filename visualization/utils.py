@@ -16,8 +16,8 @@ TOP_N_CATEGORIES = 4
 
 def generate_clean_pie_chart(predict_df, coords, point_size=20):
     """
-    生成纯净的饼图背景图片（无坐标轴、无白边）
-    返回: PIL Image 对象
+    生成高分辨率、无边框的饼图背景（透明背景），用于叠加在 Plotly 图表下方。
+    使用 matplotlib PatchCollection 优化大规模渲染性能。
     """
     # 准备颜色
     labels = predict_df.columns.tolist()
@@ -27,7 +27,7 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20):
     # 计算画布大小
     x_range = coords['x'].max() - coords['x'].min()
     y_range = coords['y'].max() - coords['y'].min()
-    if y_range == 0: y_range = 1  # 防止除以零
+    if y_range == 0: y_range = 1
     aspect_ratio = x_range / y_range
     
     # 设置高分辨率画布 (提高DPI)
@@ -38,21 +38,16 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20):
     # --- 自动计算最佳点大小 ---
     from sklearn.neighbors import NearestNeighbors
     coords_array = np.column_stack((coords['x'], coords['y']))
-    # 只需要计算最近的一个邻居
+    # 计算最近邻距离的中位数作为平均间距
     nbrs = NearestNeighbors(n_neighbors=2).fit(coords_array)
     distances, _ = nbrs.kneighbors(coords_array)
-    # 取最近邻距离的中位数作为平均间距
     avg_spacing = np.median(distances[:, 1])
     
     # 使用 PatchCollection 优化绘图性能
-    # 相比于循环调用 scatter，这将大幅减少渲染开销
     from matplotlib.patches import Wedge
     from matplotlib.collections import PatchCollection
 
-    # 直接使用数据单位的半径 (之前已经利用 s 计算过了，这里取回原始逻辑)
-    # radius_unit = avg_spacing * 0.42
-    # 我们重新定义一下半径，确保与之前的逻辑一致
-    # 之前: radius_unit = avg_spacing * 0.42
+    # 半径系数经验值
     radius = avg_spacing * 0.42
     
     print(f"  ℹ️ [Performance] 使用 PatchCollection 批量渲染优化 (半径: {radius:.4f})")
@@ -144,15 +139,7 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20):
     return Image.open(buf), (ax.get_xlim(), ax.get_ylim())
 
 def get_color_map(labels: List[str]) -> Dict[str, str]:
-    """
-    Generate a color map for a list of labels (e.g. cell types).
-    
-    Args:
-        labels (List[str]): List of labels.
-        
-    Returns:
-        Dict[str, str]: Dictionary mapping labels to hex color codes.
-    """
+    """生成标签列表的颜色映射表 (使用 matplotlib 配色)。"""
     import matplotlib.pyplot as plt
     import matplotlib
     
@@ -168,9 +155,7 @@ def get_color_map(labels: List[str]) -> Dict[str, str]:
 def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame, 
                           hover_count: int, bg_img: Any, bounds: Tuple[float, float], 
                           color_map: Dict[str, str]) -> go.Figure:
-    """
-    Generate the interactive Plotly scatter plot for Tab 1 (Spatial Composition).
-    """
+    """生成空间组成分布散点图 (Tab 1)，配合背景饼图使用。"""
     import plotly.express as px
     import plotly.graph_objects as go
     
@@ -263,9 +248,7 @@ def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFr
 
 def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame,
                              hover_count: int, color_map: Dict[str, str]) -> go.Figure:
-    """
-    Generate the dominant cell type scatter plot for Tab 2.
-    """
+    """生成优势细胞类型散点图 (Tab 2)，自适应调整点大小。"""
     import plotly.graph_objects as go
     
     display_df = coords_for_plot.copy()
@@ -345,7 +328,7 @@ def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.Data
     return fig
 
 def generate_proportion_bar(predict_df: pd.DataFrame) -> go.Figure:
-    """Generate bar chart for Tab 3"""
+    """为 Tab 3 生成柱状图"""
     import plotly.express as px
     mean_proportions = predict_df.mean().sort_values(ascending=True)
     fig = px.bar(
@@ -362,7 +345,7 @@ def generate_proportion_bar(predict_df: pd.DataFrame) -> go.Figure:
 
 def generate_heatmap(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame, 
                     selected_type: str) -> go.Figure:
-    """Generate heatmap for Tab 4"""
+    """为 Tab 4 生成热图"""
     import plotly.graph_objects as go
     
     display_df = coords_for_plot.copy()
@@ -403,15 +386,7 @@ def generate_heatmap(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame,
     return fig
 
 def save_pie_chart_background(img: Image.Image, xlim: float, ylim: float, result_dir: str) -> None:
-    """
-    Save the generated pie chart background and its metadata to the result directory.
-    
-    Args:
-        img (Image.Image): The generated background image.
-        xlim (float): The limit of the x-axis.
-        ylim (float): The limit of the y-axis.
-        result_dir (str): The directory to save the files in.
-    """
+    """保存生成的饼图背景及元数据 (xlim/ylim)。"""
     import os
     import json
     
@@ -426,12 +401,7 @@ def save_pie_chart_background(img: Image.Image, xlim: float, ylim: float, result
          print(f"Warning: Failed to save background cache: {e}")
 
 def open_folder_dialog() -> Optional[str]:
-    """
-    Open a system folder selection dialog using tkinter.
-    
-    Returns:
-        Optional[str]: The selected folder path, or None if cancelled/failed.
-    """
+    """弹出系统文件夹选择框 (仅本地运行有效)。"""
     try:
         import tkinter as tk
         from tkinter import filedialog
@@ -452,14 +422,8 @@ def open_folder_dialog() -> Optional[str]:
 
 def generate_and_save_interactive_assets(predict_df, coordinates, output_dir):
     """
-    生成并保存交互式可视化所需的背景图和元数据。
-    调用 generate_clean_pie_chart_top_n 生成 Top 4 饼图背景。
-    供 Tutorial.py 等外部脚本调用。
-    
-    Args:
-        predict_df: 预测结果 DataFrame (index=Barcodes, columns=Cell Types)
-        coordinates: 坐标 DataFrame (index=Barcodes, columns=['X', 'Y'])
-        output_dir: 结果输出目录
+    生成并保存交互式可视化资源 (Top 4 饼图背景)。
+    自动处理坐标映射并保存为 interactive_pie_background.png。
     """
     import os
     
@@ -498,13 +462,7 @@ def generate_and_save_interactive_assets(predict_df, coordinates, output_dir):
 
 def handle_visualization_generation(paths):
     """
-    处理可视化的完整流程:
-    1. 检查预测结果和坐标文件是否存在
-    2. 读取数据
-    3. 调用 generate_and_save_interactive_assets 生成资源
-    
-    Args:
-        paths: 包含 'output_path' 和 'ST_path' 的字典
+    可视化生成流程的单一入口函数：读取数据 -> 生成背景 -> 保存资源。
     """
     import os
     import pandas as pd

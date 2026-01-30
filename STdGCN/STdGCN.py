@@ -1,3 +1,7 @@
+"""
+STdGCN 主程序模块
+包含 STdGCN 算法的核心执行逻辑 run_STdGCN，用于协调数据处理、图构建和模型训练全流程。
+"""
 import os
 import torch
 import numpy as np
@@ -77,7 +81,7 @@ def run_STdGCN(paths,
                 for gene in selected_genes:
                     f.write(str(gene) + '\n')
             
-    print("{} genes have been selected as marker genes.".format(len(selected_genes)))
+    print("已选择 {} 个基因作为标记基因。".format(len(selected_genes)))
     
     
 
@@ -308,13 +312,13 @@ def run_STdGCN(paths,
     loss_table = pd.DataFrame(loss, columns=['train', 'valid', 'test'])
 
     fig, ax = plt.subplots(figsize=(7, 7))
-    ax.plot(loss_table.index, loss_table['train'], label='train')
-    ax.plot(loss_table.index, loss_table['valid'], label='valid')
+    ax.plot(loss_table.index, loss_table['train'], label='训练集')
+    ax.plot(loss_table.index, loss_table['valid'], label='验证集')
     if load_test_groundtruth == True:
-        ax.plot(loss_table.index, loss_table['test'], label='test')
-    ax.set_xlabel('Epoch', fontsize = 20)
-    ax.set_ylabel('Loss', fontsize = 20)
-    ax.set_title('Loss function curve', fontsize = 20)
+        ax.plot(loss_table.index, loss_table['test'], label='测试集')
+    ax.set_xlabel('训练轮数 (Epoch)', fontsize = 20)
+    ax.set_ylabel('损失值 (Loss)', fontsize = 20)
+    ax.set_title('损失函数曲线', fontsize = 20)
     ax.legend(fontsize = 15)
     plt.tight_layout()
     plt.savefig(output_path+'/Loss_function.jpg', dpi=300)

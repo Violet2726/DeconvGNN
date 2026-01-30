@@ -1,3 +1,8 @@
+"""
+STdGCN 邻接矩阵构建模块
+提供构建跨域（Inter-domain）和域内（Intra-domain）邻接矩阵的各种方法，
+包括基于表达量的 KNN/MNN 建图和基于空间距离的建图。
+"""
 import torch
 import numpy as np
 import pandas as pd
@@ -16,6 +21,9 @@ def find_mutual_nn(data1,
                    k1, 
                    k2, 
                   ):
+    """
+    计算两组数据之间的互最近邻 (Mutual Nearest Neighbors, MNN)。
+    """
     if dist_method == 'cosine':
         cos_sim1 = cosine_similarity(data1, data2)
         cos_sim2 = cosine_similarity(data2, data1)
@@ -43,6 +51,9 @@ def inter_adj(ST_integration,
               dist_method='euclidean',
               corr_dist_neighbors=20, 
              ):
+    """
+    构建跨域邻接矩阵 (真实斑点与伪斑点之间)。
+    """
     
     if find_neighbor_method == 'KNN':
         real = ST_integration[ST_integration['ST_type'] == 'real']
@@ -88,6 +99,9 @@ def intra_dist_adj(ST_exp,
                    space_dist_neighbors=27, 
                    space_dist_threshold=None
                   ):
+    """
+    基于空间坐标构建域内空间邻接矩阵。
+    """
     
     knn = NearestNeighbors(n_neighbors=space_dist_neighbors, metric='minkowski')
 
@@ -130,6 +144,9 @@ def intra_exp_adj(adata,
                   dim=50, 
                   corr_dist_neighbors=10, 
                   ):
+    """
+    基于基因表达构建域内表达邻接矩阵。
+    """
         
     ST_exp = adata.copy()
     
@@ -192,6 +209,9 @@ def intra_exp_adj(adata,
 
 
 def A_intra_transfer(data, data_type, real_num, pseudo_num):
+    """
+    将单独的实测数据或伪数据邻接矩阵，扩充到整合后的完整图结构中。
+    """
     
     adj = np.zeros((real_num+pseudo_num, real_num+pseudo_num), dtype=float)
     if data_type == 'real':      
@@ -204,6 +224,9 @@ def A_intra_transfer(data, data_type, real_num, pseudo_num):
 
 
 def adj_normalize(mx, symmetry=True):
+    """
+    对邻接矩阵进行归一化处理。
+    """
     
     mx = sp.csr_matrix(mx)
     rowsum = np.array(mx.sum(1))
