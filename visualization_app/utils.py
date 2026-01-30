@@ -272,8 +272,17 @@ def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.Data
     display_df['主要细胞类型'] = predict_df.idxmax(axis=1).values
     display_df['主要比例'] = predict_df.max(axis=1).values
     
-    # Size calculation - 统一设置为固定大小
-    display_df['pixel_size'] = 11
+    display_df['主要比例'] = predict_df.max(axis=1).values
+    
+    # Size calculation - 自适应大小
+    # 启发式公式: 假设画布有效区域约600-800px, 避免重叠
+    n_points = len(predict_df)
+    adaptive_size = max(3, (550 / np.sqrt(n_points)))
+    adaptive_size = min(15, adaptive_size) # 限制最大值
+    
+    display_df['pixel_size'] = adaptive_size
+    
+    print(f"  ℹ️ [Plotly] 自适应点大小: {adaptive_size:.2f} (N={n_points})")
         
     unique_types = sorted(predict_df.columns.tolist())
     fig = go.Figure()
@@ -362,12 +371,18 @@ def generate_heatmap(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame,
     hover_texts = [f"<b>位置 {idx}</b><br>类型: {selected_type}<br>比例: {val:.2%}" 
                   for idx, val in zip(display_df.index, display_df['proportion'])]
 
+    
+    # 自适应大小
+    n_points = len(predict_df)
+    adaptive_size = max(3, (550 / np.sqrt(n_points)))
+    adaptive_size = min(15, adaptive_size)
+    
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=display_df['x'], y=display_df['y'],
         mode='markers',
         marker=dict(
-            size=12,
+            size=adaptive_size,
             color=display_df['proportion'],
             colorscale='Reds',
             showscale=True,
