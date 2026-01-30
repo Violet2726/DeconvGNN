@@ -48,9 +48,7 @@ def update_labels(dataset_name):
     print(current_labels['cell_type'].value_counts().head(15))
 
 if __name__ == "__main__":
-    # Update for the posterior dataset shown in the user's image
     update_labels("V1_Mouse_Brain_Sagittal_Posterior")
-    # Also update anterior and coronal if they exist and use the same reference
     update_labels("V1_Mouse_Brain_Sagittal_Anterior")
     update_labels("V1_Adult_Mouse_Brain_Coronal_Section_1")
     update_labels("CytAssist_11mm_FFPE_Mouse_Embryo")

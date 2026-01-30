@@ -11,24 +11,53 @@ from typing import Tuple, List, Optional, Any, Dict
 from matplotlib.axes import Axes
 import plotly.graph_objects as go
 
+# Top N 配置：只显示前 N 个最大的类别
+TOP_N_CATEGORIES = 4
+
 def draw_pie(dist: np.ndarray, xpos: float, ypos: float, size: float, 
-             colors: List[str], ax: Axes) -> Axes:
+             colors: List[str], ax: Axes, top_n: int = TOP_N_CATEGORIES) -> Axes:
     """
-    在 Matplotlib Axes 上绘制单个散点饼图。
+    在 Matplotlib Axes 上绘制单个散点饼图，只显示 Top N 类别。
 
     Args:
         dist (np.ndarray): 细胞类型比例分布数组。
         xpos (float): x 坐标。
         ypos (float): y 坐标。
         size (float): 点的大小 (area).
-        colors (List[str]): 颜色列表。
+        colors (List[str]): 颜色列表（与 dist 对应）。
         ax (Axes): Matplotlib Axes 对象。
+        top_n (int): 显示的最大类别数。
 
     Returns:
         Axes: 更新后的 Axes 对象。
     """
-    cumsum = np.cumsum(dist)
-    cumsum = cumsum / cumsum[-1]
+    # 找出 Top N 的索引
+    sorted_indices = np.argsort(dist)[::-1]  # 从大到小排序的索引
+    top_indices = sorted_indices[:top_n]
+    
+    # 构建新的绘制数据：只保留 Top N
+    draw_values = []
+    draw_colors = []
+    
+    for idx in top_indices:
+        if dist[idx] > 0:  # 只绘制有值的
+            draw_values.append(dist[idx])
+            draw_colors.append(colors[idx])
+    
+    # 如果没有任何值，跳过绘制
+    if len(draw_values) == 0:
+        return ax
+    
+    # 绘制饼图
+    draw_values = np.array(draw_values)
+    # 重新归一化：将 Top N 的总和视为 100%
+    cumsum = np.cumsum(draw_values)
+    if cumsum[-1] > 0:
+        cumsum = cumsum / cumsum[-1]
+    else:
+        # 避免除以零（理论上前面 len(draw_values)==0 已经拦截了）
+        return ax
+        
     pie = [0.0] + cumsum.tolist()
     
     for i, (r1, r2) in enumerate(zip(pie[:-1], pie[1:])):
@@ -37,7 +66,7 @@ def draw_pie(dist: np.ndarray, xpos: float, ypos: float, size: float,
         y = [0.0] + np.sin(angles).tolist()
 
         xy = np.column_stack([x, y])
-        ax.scatter([xpos], [ypos], marker=xy, s=size, c=colors[i], edgecolors='none')
+        ax.scatter([xpos], [ypos], marker=xy, s=size, c=draw_colors[i], edgecolors='none')
         
     return ax
 
@@ -185,7 +214,7 @@ def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFr
         hovertemplate='%{hovertext}<extra></extra>'
     )
     
-    # Dummy legend
+    # Dummy legend - 添加所有细胞类型
     for cell_type, color in color_map.items():
         fig.add_trace(
             go.Scatter(
@@ -196,6 +225,8 @@ def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFr
                 showlegend=True
             )
         )
+    
+
     
     # Background image
     if bg_img:
@@ -240,15 +271,8 @@ def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.Data
     display_df['主要细胞类型'] = predict_df.idxmax(axis=1).values
     display_df['主要比例'] = predict_df.max(axis=1).values
     
-    # Size calculation
-    p = display_df['主要比例'].values
-    if len(p) > 0:
-        min_p, max_p = p.min(), p.max()
-        normalized = (p - min_p) / (max_p - min_p + 1e-6)
-        exp_normalized = (np.exp(2.0 * normalized) - 1) / (np.exp(2.0) - 1)
-        display_df['pixel_size'] = 8 + exp_normalized * 6
-    else:
-        display_df['pixel_size'] = 10
+    # Size calculation - 统一设置为固定大小
+    display_df['pixel_size'] = 11
         
     unique_types = sorted(predict_df.columns.tolist())
     fig = go.Figure()
