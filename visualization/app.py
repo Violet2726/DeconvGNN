@@ -224,7 +224,7 @@ def main():
                         utils.save_pie_chart_background(bg_img, xlim, ylim, result_dir)
                 
                 # 2. 生成交互式图表
-                cell_type_color_map = utils.get_color_map(predict_df.columns.tolist())
+                cell_type_color_map = utils.get_color_map(predict_df.columns.tolist(), predict_df)
 
                 fig = utils.generate_plotly_scatter(
                     coords_for_plot, predict_df, hover_count_tab1, 
@@ -249,7 +249,7 @@ def main():
             if coords_for_plot is not None:
                 # 颜色映射
                 unique_types = sorted(predict_df.columns.tolist())
-                color_map = utils.get_color_map(unique_types)
+                color_map = utils.get_color_map(unique_types, predict_df)
                 
                 fig = utils.generate_dominant_scatter(
                     coords_for_plot, predict_df, hover_count, color_map

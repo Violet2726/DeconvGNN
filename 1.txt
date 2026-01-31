@@ -12,5 +12,8 @@
 .venv/bin/python train_posterior.py
 
 
-
 .venv/bin/python utils/download_visium_data.py --dataset mouse_embryo_11mm
+
+
+
+.\_miniconda\python.exe .\utils\generate_plot.py --dataset CytAssist_11mm_FFPE_Mouse_Embryo V1_Adult_Mouse_Brain_Coronal_Section_1 V1_Mouse_Brain_Sagittal_Anterior V1_Mouse_Brain_Sagittal_Posterior

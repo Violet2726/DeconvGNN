@@ -6,6 +6,13 @@ import pandas as pd
 import gzip
 import os
 
+DATASETS = [
+    "V1_Mouse_Brain_Sagittal_Posterior",
+    "V1_Mouse_Brain_Sagittal_Anterior",
+    "V1_Adult_Mouse_Brain_Coronal_Section_1",
+    "CytAssist_11mm_FFPE_Mouse_Embryo"
+]
+
 def update_labels(dataset_name):
     print(f"正在更新数据集 {dataset_name} 的标签...")
     combined_dir = f"data/{dataset_name}/combined"
@@ -49,8 +56,14 @@ def update_labels(dataset_name):
     print("新的细胞类型分布情况：")
     print(current_labels['cell_type'].value_counts().head(15))
 
+
 if __name__ == "__main__":
-    update_labels("V1_Mouse_Brain_Sagittal_Posterior")
-    update_labels("V1_Mouse_Brain_Sagittal_Anterior")
-    update_labels("V1_Adult_Mouse_Brain_Coronal_Section_1")
-    update_labels("CytAssist_11mm_FFPE_Mouse_Embryo")
+    import argparse
+    parser = argparse.ArgumentParser(description='更新单细胞标签')
+    parser.add_argument('--dataset', type=str, nargs='+', 
+                        default=DATASETS,
+                        help='要更新的数据集名称 (支持多个, 空格分隔)')
+    args = parser.parse_args()
+    
+    for ds in args.dataset:
+        update_labels(ds)

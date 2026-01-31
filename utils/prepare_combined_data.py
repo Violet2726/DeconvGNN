@@ -8,19 +8,18 @@ import scanpy as sc
 import os
 import argparse
 
-# 默认数据集
-DEFAULT_DATASET = 'CytAssist_11mm_FFPE_Mouse_Embryo'
+DATASETS = [
+    "V1_Mouse_Brain_Sagittal_Posterior",
+    "V1_Mouse_Brain_Sagittal_Anterior",
+    "V1_Adult_Mouse_Brain_Coronal_Section_1",
+    "CytAssist_11mm_FFPE_Mouse_Embryo"
+]
 
-def main():
-    parser = argparse.ArgumentParser(description='整合 Visium 和 Allen Brain 数据')
-    parser.add_argument('--dataset', type=str, default=DEFAULT_DATASET,
-                        help=f'Visium 数据集目录名称 (默认: {DEFAULT_DATASET})')
-    args = parser.parse_args()
-
+def process_dataset(dataset_name):
     # ============================================================
     # 1. 配置路径
     # ============================================================
-    st_source = args.dataset
+    st_source = dataset_name
     
     # 配置输入与输出目录
     sc_dir = "data/ref_mouse_cortex_allen"  
@@ -189,4 +188,15 @@ def main():
     print(f"后续操作提醒: 训练脚本 Tutorial.py 应指向上述目录。")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description='整合 Visium 和 Allen Brain 数据')
+    parser.add_argument('--dataset', type=str, nargs='+', default=DATASETS,
+                        help=f'Visium 数据集目录名称 (支持多个，空格分隔)')
+    args = parser.parse_args()
+
+    datasets = args.dataset
+    
+    for i, ds in enumerate(datasets):
+        print("\n" + "#" * 70)
+        print(f"[{i+1}/{len(datasets)}] 正在处理数据集: {ds}")
+        print("#" * 70)
+        process_dataset(ds)

@@ -1,70 +1,155 @@
-<img src="https://github.com/luoyuanlab/stdgcn/blob/main/img_folder/Logo.jpg" height="160px" />  <br />
+<img src="img_folder/Logo.jpg" height="160px" />  <br />
 
 # **iSTdGCN-Vis: 空间转录组反卷积改进版可视化系统**
 
 > 本项目基于 **STdGCN (Genome Biology, 2024)** 框架进行了深度的功能增强与可视化重构，旨在提供更直观、更高效的空间分布分析体验。
 
 ## 🌟 核心改进
+
 *   **交互式 Web 可视化平台**：基于 Streamlit 构建，支持空间跨尺度缩放、多层级饼图背景展现及实时悬停比例查看。
-*   **可视化逻辑高度集成**：将原有的分散绘图代码重构为统一的 `visualization` 模块，显著提升维护性。
+*   **智能配色系统**：基于细胞类型空间相关性的层次聚类，自动分配相似颜色给空间分布相近的细胞类型。
 *   **极致性能优化**：
     *   使用 `PatchCollection` 优化多色饼图渲染，大幅减少由于大样本量导致的绘图卡顿。
     *   Plotly 散点图悬停算法优化，数千个点的实时交互无延迟。
-*   **极简操作流程**：内置一键启动脚本（`.bat`），支持训练完成后自动生成可视化资源。
+*   **批量处理支持**：所有工具脚本均支持一次性处理多个数据集。
 *   **全面中文化支持**：源代码注释、控制台输出及 Web 界面文字均已重构为中文。
 
 ---
 
 ## 🛠️ 环境配置
+
 推荐使用 Python 3.8+ 环境，安装以下核心依赖：
-- `torch == 1.11.0`
-- `scanpy == 1.9.1`
-- `pandas == 1.3.5`
-- `numpy == 1.21.6`
-- `plotly`
-- `streamlit`
-- `matplotlib`
-- `scipy`
-- `tqdm`
-- `sklearn`
+
+```
+torch >= 1.11.0
+scanpy >= 1.9.1
+pandas >= 1.3.5
+numpy >= 1.21.6
+plotly
+streamlit
+matplotlib
+scipy
+tqdm
+scikit-learn
+```
 
 ---
 
-## 🚀 快速入门
+## 🚀 完整工作流程
 
-### 1. 模型训练 (Training)
-运行 `Tutorial.py` 进行模型训练。它会自动读取 `data` 目录下的输入数据，训练完成后会保存预测结果并触发可视化背景图生成。
+### 📥 Step 1: 下载数据
+
+下载 10x Visium 官方示例数据集：
+
 ```bash
-python Tutorial.py --dataset CytAssist_11mm_FFPE_Mouse_Embryo
+python utils/download_visium_data.py --dataset V1_Adult_Mouse_Brain_Coronal_Section_1
 ```
-或者在 Windows 环境下直接双击运行：`run_tutorial.bat`
 
-### 2. 启动可视化系统 (Visualization)
-训练完成后，运行以下命令启动交互式 Web 界面，从浏览器查看分析结果：
+**支持的数据集：**
+- `V1_Adult_Mouse_Brain_Coronal_Section_1`
+- `V1_Mouse_Brain_Sagittal_Anterior`
+- `V1_Mouse_Brain_Sagittal_Posterior`
+- `CytAssist_11mm_FFPE_Mouse_Embryo`
+
+**批量下载：**
+```bash
+python utils/download_visium_data.py  # 不加参数则下载全部
+```
+
+---
+
+### 🔗 Step 2: 整合数据
+
+将单细胞参考数据与空间数据整合，生成训练所需的 `combined/` 目录：
+
+```bash
+python utils/prepare_combined_data.py --dataset V1_Adult_Mouse_Brain_Coronal_Section_1
+```
+
+**批量处理：**
+```bash
+python utils/prepare_combined_data.py  # 不加参数则处理全部
+```
+
+---
+
+### 🧠 Step 3: 模型训练
+
+运行 STdGCN 模型进行细胞类型反卷积：
+
+```bash
+python Tutorial.py --dataset V1_Adult_Mouse_Brain_Coronal_Section_1
+```
+
+训练完成后会自动生成可视化背景图。
+
+---
+
+### 🎨 Step 4: 启动可视化
+
+启动交互式 Web 界面查看分析结果：
+
 ```bash
 python -m streamlit run visualization/app.py
 ```
-或者在 Windows 环境下直接双击运行：`run_visualization.bat`
+
+或者直接双击运行：`run_visualization.bat`
 
 ---
 
-## 📁 数据输入规范
-系统要求的数据格式位于每个数据集的 `combined/` 目录下：
-*   **sc_data.tsv**: 单细胞参考表达矩阵（细胞 × 基因）。
-*   **sc_label.tsv**: 对应的细胞类型注释文件（Barcode 与 Cell_Type）。
-*   **ST_data.tsv**: 空间转录组表达矩阵（Spot × 基因）。
-*   **coordinates.csv**: 空间坐标文件，要求包含 `x`, `y` 两列。
+### 🔄 Step 5: 重新生成图表（可选）
+
+如需在不重新训练的情况下更新可视化：
+
+```bash
+python utils/generate_plot.py --dataset V1_Adult_Mouse_Brain_Coronal_Section_1
+```
+
+**批量处理：**
+```bash
+python utils/generate_plot.py  # 不加参数则处理全部
+```
+
+---
+
+## 📁 项目结构
+
+```
+iSTdGCN-Vis/
+├── data/                          # 数据目录
+│   ├── ref_mouse_cortex_allen/    # 单细胞参考数据
+│   └── [数据集名]/
+│       ├── ST_data.tsv            # 空间表达矩阵
+│       ├── coordinates.csv        # 空间坐标
+│       ├── combined/              # 整合后的训练数据
+│       └── results/               # 训练结果与可视化资源
+├── STdGCN/                        # 核心算法模块
+├── visualization/                 # 可视化模块
+│   ├── app.py                     # Streamlit 主程序
+│   └── utils.py                   # 绑图工具函数
+├── utils/                         # 工具脚本
+│   ├── download_visium_data.py    # 数据下载
+│   ├── prepare_combined_data.py   # 数据整合
+│   ├── generate_plot.py           # 图表生成
+│   └── update_labels.py           # 标签更新
+└── Tutorial.py                    # 训练入口
+```
 
 ---
 
 ## 📦 输出产物
-结果默认保存在 `data/[数据集名]/results/`：
-*   `predict_result.csv`: 最终预测的每个位置的细胞类型比例。
-*   `Loss_function.jpg`: 训练损失值下降曲线图。
-*   `model_parameters`: 训练好的 PyTorch 模型权重。
-*   `interactive_pie_background.png`: 专为 Web 端交互优化的多色饼图底图。
+
+结果保存在 `data/[数据集名]/results/`：
+
+| 文件名 | 说明 |
+| :--- | :--- |
+| `predict_result.csv` | 每个空间点的细胞类型比例预测结果 |
+| `Loss_function.jpg` | 训练损失曲线图 |
+| `model_parameters` | PyTorch 模型权重 |
+| `interactive_pie_background.png` | Web 端交互式饼图底图 |
 
 ---
 
 ## 📖 参考引用
-[1] Li Y, Luo Y. Stdgcn: spatial transcriptomic cell-type deconvolution using graph convolutional networks. *Genome Biol.* (2024) 25:206. [DOI: 10.1186/s13059-024-03353-0](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-024-03353-0)
+
+Li Y, Luo Y. Stdgcn: spatial transcriptomic cell-type deconvolution using graph convolutional networks. *Genome Biol.* (2024) 25:206. [DOI: 10.1186/s13059-024-03353-0](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-024-03353-0)

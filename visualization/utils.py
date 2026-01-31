@@ -19,9 +19,9 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20):
     生成高分辨率、无边框的饼图背景（透明背景），用于叠加在 Plotly 图表下方。
     使用 matplotlib PatchCollection 优化大规模渲染性能。
     """
-    # 准备颜色
+    # 准备颜色 (使用智能聚类配色)
     labels = predict_df.columns.tolist()
-    color_map = get_color_map(labels)
+    color_map = get_color_map(labels, predict_df)
     colors = [color_map[label] for label in labels]
     
     # 计算画布大小
@@ -138,19 +138,71 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20):
     
     return Image.open(buf), (ax.get_xlim(), ax.get_ylim())
 
-def get_color_map(labels: List[str]) -> Dict[str, str]:
-    """生成标签列表的颜色映射表 (使用 matplotlib 配色)。"""
-    import matplotlib.pyplot as plt
-    import matplotlib
+def get_color_map(labels: List[str], predict_df: Optional[pd.DataFrame] = None) -> Dict[str, str]:
+    """
+    生成标签列表的颜色映射表。
     
-    unique_types = sorted(list(set(labels)))
-    if len(unique_types) <= 10:
-        colors_list = plt.rcParams["axes.prop_cycle"].by_key()['color'][:len(unique_types)]
-    else:
-        color_tab = plt.get_cmap('rainbow', len(unique_types))
-        colors_list = [matplotlib.colors.to_hex(x, keep_alpha=False) for x in color_tab(range(len(unique_types)))]
+    [智能配色模式]
+    如果提供了 predict_df，则计算细胞类型间的空间相关性，并进行层次聚类。
+    排序后的细胞类型将在色相环(Hue Cycle)上相邻，从而实现：
+    "空间分布相似的细胞类型，颜色也相近"（符合学术界 co-localization 可视化标准）。
     
-    return dict(zip(unique_types, colors_list))
+    [默认模式]
+    如果未提供 predict_df，则按字母序排列。
+    """
+    import matplotlib.colors as mcolors
+    import colorsys
+    import numpy as np
+    import pandas as pd
+    
+    # 默认按字母序，保证确定性
+    sorted_labels = sorted(list(set(labels)))
+    
+    # --- 核心改进：基于生物学/空间相关性的层次聚类排序 ---
+    if predict_df is not None:
+        try:
+            import scipy.cluster.hierarchy as sch
+            import scipy.spatial.distance as dist
+            
+            # 1. 确保 predict_df 仅包含需要的列
+            valid_cols = [c for c in sorted_labels if c in predict_df.columns]
+            if len(valid_cols) > 2:
+                data = predict_df[valid_cols]
+                
+                # 2. 计算特征矩阵的转置（行=细胞类型，列=空间点）
+                # 我们要聚类的是"细胞类型"
+                correlation_matrix = data.corr().fillna(0)
+                
+                # 3. 层次聚类 (Ward's method)
+                # 使用 1 - correlation 作为距离度量
+                d = sch.distance.pdist(correlation_matrix)
+                linkage = sch.linkage(d, method='ward')
+                
+                # 4. 获取最优叶节点排序索引
+                ind = sch.leaves_list(linkage)
+                
+                # 5. 重排标签
+                sorted_labels = [correlation_matrix.columns[i] for i in ind]
+                # print(f"  ℹ️ [Auto-Color] 已根据空间相关性重排细胞类型顺序")
+        except Exception as e:
+            print(f"  ⚠️ [Color] 聚类排序失败，回退到字母序: {e}")
+            
+    n = len(sorted_labels)
+    colors = []
+    
+    # 生成均匀分布的色相 (Hue)
+    # 使用 ggplot2/Seurat 风格的 HSL 色轮
+    hues = np.linspace(0, 1, n + 1)[:-1] 
+    
+    for h in hues:
+        # H=Hue
+        # L=0.5 (亮度)
+        # S=0.65 (饱和度)
+        rgb = colorsys.hls_to_rgb(h, 0.5, 0.65)
+        hex_color = mcolors.to_hex(rgb)
+        colors.append(hex_color)
+    
+    return dict(zip(sorted_labels, colors))
 
 def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame, 
                           hover_count: int, bg_img: Any, bounds: Tuple[float, float], 
@@ -267,7 +319,10 @@ def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.Data
     
     print(f"  ℹ️ [Plotly] 自适应点大小: {adaptive_size:.2f} (N={n_points})")
         
-    unique_types = sorted(predict_df.columns.tolist())
+    # 修改：不再强制字母排序，而是跟随 color_map 的键顺序（即聚类顺序）
+    # unique_types = sorted(predict_df.columns.tolist())
+    unique_types = [t for t in color_map.keys() if t in predict_df.columns]
+    
     fig = go.Figure()
     
     for cell_type in unique_types:
@@ -340,7 +395,15 @@ def generate_proportion_bar(predict_df: pd.DataFrame) -> go.Figure:
         color_continuous_scale='Blues',
         title="各细胞类型平均占比"
     )
-    fig.update_layout(height=500, showlegend=False)
+    # 根据条目数量动态调整高度，防止拥挤
+    dynamic_height = max(500, len(mean_proportions) * 25)
+    
+    fig.update_layout(
+        height=dynamic_height, 
+        showlegend=False,
+        # 增加左侧边距以显示完整标签
+        margin=dict(l=150)
+    )
     return fig
 
 def generate_heatmap(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame, 

@@ -13,6 +13,13 @@ sys.path.append(os.getcwd())
 
 from visualization.utils import generate_and_save_interactive_assets
 
+DATASETS = [
+    "V1_Mouse_Brain_Sagittal_Posterior",
+    "V1_Mouse_Brain_Sagittal_Anterior",
+    "V1_Adult_Mouse_Brain_Coronal_Section_1",
+    "CytAssist_11mm_FFPE_Mouse_Embryo"
+]
+
 def generate_plot(dataset_name):
     print(f"正在为 {dataset_name} 重新生成图表...")
     
@@ -48,10 +55,15 @@ def generate_plot(dataset_name):
     except Exception as e:
         print(f"生成图表时出错: {e}")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='在不重新训练的情况下重新生成交互式图表')
-    parser.add_argument('--dataset', type=str, default='CytAssist_11mm_FFPE_Mouse_Embryo',
-                        help='数据集名称 (例如: V1_Mouse_Brain_Sagittal_Posterior)')
+    parser.add_argument('--dataset', type=str, nargs='+', default=DATASETS,
+                        help='数据集名称，使用空格分隔多个 (例如: --dataset Data1 Data2)')
     args = parser.parse_args()
     
-    generate_plot(args.dataset)
+    datasets = args.dataset
+    
+    for i, ds in enumerate(datasets):
+        print(f"\n[{i+1}/{len(datasets)}] 正在处理数据集: {ds}")
+        generate_plot(ds)

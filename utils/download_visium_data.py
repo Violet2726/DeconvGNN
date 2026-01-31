@@ -10,19 +10,17 @@ import subprocess
 import shutil
 
 # 可用的数据集列表 (Scanpy 支持的 sample_id)
-# 这些是 scanpy.datasets.visium_sge 内置支持的
-DATASETS = {
-    # 'coronal': 'V1_Adult_Mouse_Brain_Coronal_Section_1',
-    # 'sagittal_anterior': 'V1_Mouse_Brain_Sagittal_Anterior',
-    # 'sagittal_posterior': 'V1_Mouse_Brain_Sagittal_Posterior',
-    # 新增: 11mm 大视野数据集 (斑点数 > 5000)
-    # 注：Scanpy 内置函数可能不支持直接下载该ID，我们需要自定义下载逻辑
-    'mouse_embryo_11mm': 'CytAssist_11mm_FFPE_Mouse_Embryo', 
-}
+# 仅使用 10x 官方全名作为 ID
+DATASETS = [
+    'V1_Adult_Mouse_Brain_Coronal_Section_1',
+    'V1_Mouse_Brain_Sagittal_Anterior',
+    'V1_Mouse_Brain_Sagittal_Posterior',
+    'CytAssist_11mm_FFPE_Mouse_Embryo', 
+]
 
 # 10x 官方下载链接映射 (针对 Scanpy 不直接支持的数据集)
 EXTERNAL_URLS = {
-    'mouse_embryo_11mm': {
+    'CytAssist_11mm_FFPE_Mouse_Embryo': {
         'h5': 'https://cf.10xgenomics.com/samples/spatial-exp/2.0.0/CytAssist_11mm_FFPE_Mouse_Embryo/CytAssist_11mm_FFPE_Mouse_Embryo_filtered_feature_bc_matrix.h5',
         'image': 'https://cf.10xgenomics.com/samples/spatial-exp/2.0.0/CytAssist_11mm_FFPE_Mouse_Embryo/CytAssist_11mm_FFPE_Mouse_Embryo_spatial.tar.gz'
     }
@@ -45,7 +43,7 @@ def download_file(url, target_path):
 
 def process_external_dataset(dataset_key, output_root):
     """处理不在 Scanpy 内置列表中的外部数据集"""
-    sample_id = DATASETS[dataset_key]
+    sample_id = dataset_key
     urls = EXTERNAL_URLS[dataset_key]
     
     # 目标目录结构: output_root/sample_id
@@ -103,17 +101,13 @@ def process_external_dataset(dataset_key, output_root):
         coords.to_csv(coords_path)
         print(f"  ✓ 保存成功: {coords.shape}")
     
-    # 6. 保存 h5ad 备份
-    h5ad_path = os.path.join(dataset_dir, "filtered_feature_bc_matrix.h5ad")
-    adata.write_h5ad(h5ad_path)
-    print(f"  ✓ h5ad 备份已保存")
-    
     print(f"\n[成功] 全部完成！数据位于: {dataset_dir}")
 
-def download_and_format_visium(dataset_key='coronal', output_root='data'):
+def download_and_format_visium(dataset_key, output_root='data'):
     """处理数据集下载与格式转换的主入口函数"""
     if dataset_key not in DATASETS:
-        print(f"[错误] 未知的数据集。可用选项: {list(DATASETS.keys())}")
+        print(f"[错误] 未知的数据集名称: '{dataset_key}'")
+        print(f"  支持的选项: {DATASETS}")
         return
 
     # 检查是否为外部数据集 (需要手动下载)
@@ -122,7 +116,7 @@ def download_and_format_visium(dataset_key='coronal', output_root='data'):
         return
 
     # 处理 Scanpy 内置数据集
-    sample_id = DATASETS[dataset_key]
+    sample_id = dataset_key
     dataset_dir = os.path.join(output_root, sample_id)
     
     if os.path.exists(dataset_dir) and os.path.exists(os.path.join(dataset_dir, 'ST_data.tsv')):
@@ -136,7 +130,6 @@ def download_and_format_visium(dataset_key='coronal', output_root='data'):
         os.makedirs(dataset_dir, exist_ok=True)
         
         # 生成 ST_data.tsv
-        # 生成 ST_data.tsv
         print(f"[信息] 正在生成 ST_data.tsv...")
         if hasattr(adata.X, "toarray"):
             df = pd.DataFrame(adata.X.toarray(), index=adata.obs_names, columns=adata.var_names)
@@ -148,7 +141,6 @@ def download_and_format_visium(dataset_key='coronal', output_root='data'):
         print(f"  ✓ 保存成功: {df.shape}")
         
         # 生成 coordinates.csv
-        # 生成 coordinates.csv
         print(f"[信息] 正在生成 coordinates.csv...")
         if 'spatial' in adata.obsm:
             coords = pd.DataFrame(adata.obsm['spatial'], columns=['x', 'y'], index=adata.obs_names)
@@ -157,26 +149,20 @@ def download_and_format_visium(dataset_key='coronal', output_root='data'):
             coords.to_csv(coords_path)
             print(f"  ✓ 保存成功: {coords.shape}")
 
-        # 保存 h5ad
-        h5ad_path = os.path.join(dataset_dir, "filtered_feature_bc_matrix.h5ad")
-        adata.write_h5ad(h5ad_path)
-
-        # 准备 STdGCN 训练所需的 combined 目录
-        combined_dir = os.path.join(dataset_dir, "combined")
-        os.makedirs(combined_dir, exist_ok=True)
-        shutil.copy(st_path, os.path.join(combined_dir, "ST_data.tsv"))
-        shutil.copy(coords_path, os.path.join(combined_dir, "coordinates.csv"))
-
         print(f"\n[成功] 全部完成！数据位于: {dataset_dir}")
-        print(f"[信息] 训练所需文件已同步至: {combined_dir}")
         
     except Exception as e:
         print(f"[错误] 下载或处理失败: {e}")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='下载 10x Visium 空间转录组数据')
-    parser.add_argument('--dataset', type=str, default='mouse_embryo_11mm', 
-                        choices=DATASETS.keys(), help='要下载的数据集名称')
+    parser.add_argument('--dataset', type=str, nargs='+', default=DATASETS, 
+                        help='要下载的数据集名称 (支持多个, 空格分隔)')
     args = parser.parse_args()
 
-    download_and_format_visium(args.dataset)
+    datasets = args.dataset
+
+    for i, ds in enumerate(datasets):
+        print(f"\n>>>>>> [{i+1}/{len(datasets)}] 开始处理: {ds} <<<<<<")
+        download_and_format_visium(ds)
