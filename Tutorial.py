@@ -15,7 +15,7 @@ import argparse
 
 warnings.filterwarnings("ignore")
 sys.path.append(os.getcwd())
-from STdGCN.STdGCN import run_STdGCN
+from core.STdGCN import run_STdGCN
 from visualization.utils import handle_visualization_generation
 import pandas as pd
 

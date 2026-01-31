@@ -14,7 +14,7 @@ from torch.nn.modules.module import Module
 import torch.nn.functional as F
 import copy
 
-from STdGCN.CKGC import CKGConvParameters, CKGConv, GraphDataBuilder
+from core.CKGC import CKGConvParameters, CKGConv, GraphDataBuilder
 
 
 class conGraphConvolutionlayer(Module):

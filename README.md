@@ -1,8 +1,8 @@
 <img src="img_folder/Logo.jpg" height="160px" />  <br />
 
-# **iSTdGCN-Vis: 空间转录组反卷积改进版可视化系统**
+# **DeconvGNN: 基于图神经网络的空间转录组反卷积系统**
 
-> 本项目基于 **STdGCN (Genome Biology, 2024)** 框架进行了深度的功能增强与可视化重构，旨在提供更直观、更高效的空间分布分析体验。
+> 一种基于图神经网络（GNN）的空间转录组学数据反卷积方法及可视化分析系统。以单细胞 RNA 测序数据作为参考，解析空间转录组学点位中不同细胞类型的组成比例。
 
 ## 🌟 核心改进
 
@@ -115,7 +115,7 @@ python utils/generate_plot.py  # 不加参数则处理全部
 ## 📁 项目结构
 
 ```
-iSTdGCN-Vis/
+DeconvGNN/
 ├── data/                          # 数据目录
 │   ├── ref_mouse_cortex_allen/    # 单细胞参考数据
 │   └── [数据集名]/
@@ -123,7 +123,11 @@ iSTdGCN-Vis/
 │       ├── coordinates.csv        # 空间坐标
 │       ├── combined/              # 整合后的训练数据
 │       └── results/               # 训练结果与可视化资源
-├── STdGCN/                        # 核心算法模块
+├── core/                          # 核心算法模块
+│   ├── STdGCN.py                  # 主算法入口
+│   ├── GCN.py                     # 图神经网络模型
+│   ├── CKGC.py                    # CKGConv 图卷积层
+│   └── adjacency_matrix.py        # 邻接矩阵构建
 ├── visualization/                 # 可视化模块
 │   ├── app.py                     # Streamlit 主程序
 │   └── utils.py                   # 绑图工具函数

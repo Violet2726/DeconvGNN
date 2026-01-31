@@ -9,7 +9,7 @@ from multiprocessing import freeze_support
 
 warnings.filterwarnings("ignore")
 sys.path.append(os.getcwd())
-from STdGCN.STdGCN import run_STdGCN
+from core.STdGCN import run_STdGCN
 
 '''
 This module is used to provide the path of the loading data and saving data.
