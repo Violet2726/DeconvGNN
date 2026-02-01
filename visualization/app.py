@@ -12,11 +12,11 @@ import os
 try:
     import visualization.styles as styles
     import visualization.data_loader as data_loader
-    import visualization.utils as utils
+    import visualization.viz_utils as utils
 except ImportError:
     import styles
     import data_loader
-    import utils
+    import viz_utils as utils
 
 # --- 页面全局配置 ---
 st.set_page_config(
