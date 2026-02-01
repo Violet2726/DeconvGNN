@@ -7,7 +7,11 @@ from typing import Tuple, Optional, List, Dict
 # 数据目录配置 (初始为空)
 DATA_DIRS: Dict[str, str] = {}
 
-@st.cache_data
+# ========== 缓存配置 ==========
+CACHE_TTL = 3600  # 缓存有效期 1 小时
+CACHE_MAX_ENTRIES = 10  # 最多缓存 10 个数据集
+
+@st.cache_data(ttl=CACHE_TTL, max_entries=CACHE_MAX_ENTRIES, show_spinner=False)
 def load_results(result_dir: str) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]:
     """
     加载反卷积结果和坐标文件。
@@ -36,15 +40,34 @@ def load_results(result_dir: str) -> Tuple[Optional[pd.DataFrame], Optional[pd.D
     # 搜索顺序：结果目录 -> 父目录 -> combined目录
     search_paths = [coord_in_result, coord_in_parent, coord_in_combined]
     
+    print(f"[DataLoader] Loading predict_df from: {predict_path}")
+    print(f"[DataLoader] Searching for coords in: {search_paths}")
+    
     for coord_path in search_paths:
         if os.path.exists(coord_path):
             try:
-                coords = pd.read_csv(coord_path, index_col=0)
-                if len(coords) == len(predict_df):
-                    break
-            except Exception:
+                temp_coords = pd.read_csv(coord_path, index_col=0)
+                print(f"[DataLoader] Found {coord_path}, rows: {len(temp_coords)} vs {len(predict_df)}")
+                
+                # Loose check: verify if indices overlap significantly instead of strict length match
+                # strict checking often fails due to slight filtering differences
+                common_indices = predict_df.index.intersection(temp_coords.index)
+                match_ratio = len(common_indices) / len(predict_df)
+                
+                if match_ratio > 0.9: # 90% overlap allowed
+                     coords = temp_coords.loc[predict_df.index] # Realign
+                     print(f"[DataLoader] Valid match found! Aligned {len(coords)} rows.")
+                     break
+                else:
+                    print(f"[DataLoader] Mismatch indices. Overlap ratio: {match_ratio:.2f}")
+
+            except Exception as e:
+                print(f"[DataLoader] Error reading {coord_path}: {e}")
                 continue
     
+    if coords is None:
+        print("[DataLoader] FAILED to find matching coordinates file.")
+        
     return predict_df, coords
 
 def get_cell_types(predict_df: pd.DataFrame) -> List[str]:

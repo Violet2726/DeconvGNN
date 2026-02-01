@@ -16,7 +16,7 @@ import visualization.utils as utils
 
 # --- 1. 页面配置 ---
 st.set_page_config(
-    page_title="iSTdGCN-Vis",
+    page_title="DeconvGNN-Vis",
     page_icon="🧬",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -33,7 +33,7 @@ def main():
     # === 侧边栏区域：数据选择与管理 ===
     with st.sidebar:
         # 顶部标题
-        st.markdown('<p class="main-header">🧬 iSTdGCN-Vis<br>空间转录组反卷积<br>可视化系统</p>', unsafe_allow_html=True)
+        st.markdown('<p class="main-header">🧬 DeconvGNN-Vis<br>空间转录组反卷积<br>可视化系统</p>', unsafe_allow_html=True)
         st.divider()
 
         st.header("📊 数据选择")
@@ -89,6 +89,13 @@ def main():
             if st.button(btn_label, use_container_width=True):
                 st.session_state.show_import = not st.session_state.show_import
                 st.rerun()
+
+        st.divider()
+        
+        # 调试工具：清除缓存
+        if st.button("🧹 清除缓存", use_container_width=True, help="如果遇到数据加载问题，请点击此按钮重置"):
+            st.cache_data.clear()
+            st.rerun()
 
         st.divider()
 
@@ -154,7 +161,7 @@ def main():
     
     # 1. 全局数据检查
     if result_dir is None:
-        st.title("iSTdGCN-Vis")
+        st.title("DeconvGNN-Vis")
         st.info("👈 请在左侧 **侧边栏** 导入数据以开始使用")
         return
         
@@ -181,6 +188,19 @@ def main():
             st.metric("平均比例", f"{predict_df[predict_df.mean().idxmax()].mean():.2%}")
         
         st.divider()
+        
+        # ========== 图表缓存（减少侧边栏切换时的重渲染） ==========
+        # 使用数据指纹作为缓存键
+        cache_key = f"{selected_dataset_name}_{len(predict_df)}_{len(cell_types)}"
+        if 'chart_cache' not in st.session_state:
+            st.session_state.chart_cache = {}
+        if 'chart_cache_key' not in st.session_state:
+            st.session_state.chart_cache_key = None
+        
+        # 数据集变更时清除缓存
+        if st.session_state.chart_cache_key != cache_key:
+            st.session_state.chart_cache = {}
+            st.session_state.chart_cache_key = cache_key
         
         # 4. 可视化选项卡
         tabs = st.tabs([
@@ -218,10 +238,23 @@ def main():
                         xlim = metadata['xlim']
                         ylim = metadata['ylim']
                 else:
-                    with st.spinner("⏳ 正在绘制饼图背景..."):
-                        # 如果没有预计算的背景，现场生成并缓存
-                        bg_img, (xlim, ylim) = utils.generate_clean_pie_chart(predict_df, coords_for_plot, None)
-                        utils.save_pie_chart_background(bg_img, xlim, ylim, result_dir)
+                    # 使用详细进度条替代简单 spinner
+                    progress_bar = st.progress(0, text="⏳ 准备生成饼图背景...")
+                    status_text = st.empty()
+                    
+                    def update_progress(pct, msg):
+                        progress_bar.progress(pct, text=f"⏳ {msg}")
+                    
+                    # 如果没有预计算的背景，现场生成并缓存
+                    bg_img, (xlim, ylim) = utils.generate_clean_pie_chart(
+                        predict_df, coords_for_plot, None, 
+                        progress_callback=update_progress
+                    )
+                    utils.save_pie_chart_background(bg_img, xlim, ylim, result_dir)
+                    
+                    # 清除进度条
+                    progress_bar.empty()
+                    status_text.empty()
                 
                 # 2. 生成交互式图表
                 cell_type_color_map = utils.get_color_map(predict_df.columns.tolist(), predict_df)
@@ -231,7 +264,7 @@ def main():
                     bg_img, (xlim, ylim), cell_type_color_map
                 )
                 
-                st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False, 'responsive': True})
+                st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False, 'responsive': True, 'staticPlot': False})
                 st.caption("💡 说明：此图背景为多色饼图，展示每个位置的细胞组成；鼠标悬停可查看具体比例数据。")
             else:
                  st.warning("缺少坐标数据，无法生成交互式图表。显示静态预览：")
@@ -245,17 +278,28 @@ def main():
             
             with st.expander("🛠️ 设置", expanded=False):
                 hover_count = st.slider("悬停显示前 N 种细胞", 3, len(cell_types), min(6, len(cell_types)), key="tab2_hover")
-            
+                
             if coords_for_plot is not None:
-                # 颜色映射
-                unique_types = sorted(predict_df.columns.tolist())
-                color_map = utils.get_color_map(unique_types, predict_df)
+                # 始终使用全量数据
+                plot_predict_df = predict_df
+                plot_coords = coords_for_plot
                 
-                fig = utils.generate_dominant_scatter(
-                    coords_for_plot, predict_df, hover_count, color_map
-                )
+                # 使用缓存键检查是否需要重新生成图表
+                tab2_cache_key = f"tab2_{hover_count}"
                 
-                st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False})
+                if tab2_cache_key not in st.session_state.chart_cache:
+                    # 颜色映射
+                    unique_types = sorted(predict_df.columns.tolist())
+                    color_map = utils.get_color_map(unique_types, predict_df)
+                    
+                    fig = utils.generate_dominant_scatter(
+                        plot_coords, plot_predict_df, hover_count, color_map
+                    )
+                    st.session_state.chart_cache[tab2_cache_key] = fig
+                else:
+                    fig = st.session_state.chart_cache[tab2_cache_key]
+                
+                st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False, 'responsive': True})
                 st.caption(
                     """
                     🖱️ 图例操作说明：
@@ -275,11 +319,10 @@ def main():
         # --- Tab 4: 单细胞类型热图 (Heatmap) ---
         with tabs[3]:
             selected_type = st.selectbox("🔬 选择要查看的细胞类型", cell_types, index=0)
-            st.subheader(f"单细胞类型热图: {selected_type}")
-            
+
             if coords_for_plot is not None:
                 fig = utils.generate_heatmap(coords_for_plot, predict_df, selected_type)
-                st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False})
+                st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False, 'responsive': True})
             else:
                 # 尝试显示静态图 fallback
                 heatmap_path = os.path.join(result_dir, f"{selected_type}.jpg")

@@ -5,24 +5,117 @@ import io
 import base64
 from PIL import Image
 import pandas as pd
+import hashlib
+from functools import lru_cache
 
-from typing import Tuple, List, Optional, Any, Dict
-from typing import Tuple, List, Optional, Any, Dict
+from typing import Tuple, List, Optional, Any, Dict, Callable
 from matplotlib.axes import Axes
 import plotly.graph_objects as go
+
+# Streamlit 缓存（延迟导入避免循环依赖）
+try:
+    import streamlit as st
+    HAS_STREAMLIT = True
+except ImportError:
+    HAS_STREAMLIT = False
 
 # Top N 配置：只显示前 N 个最大的类别
 TOP_N_CATEGORIES = 4
 
-def generate_clean_pie_chart(predict_df, coords, point_size=20):
+# ========== 性能优化配置 ==========
+LOD_THRESHOLD = 5000  # 超过此点数启用 LOD 抽样
+LOD_SAMPLE_RATIO = 0.3  # LOD 模式下的抽样比例
+CHART_CACHE_SIZE = 16  # 图表缓存数量
+
+def get_data_fingerprint(df: pd.DataFrame) -> str:
+    """
+    生成 DataFrame 的快速指纹（用于缓存键）。
+    使用形状 + 前后几行的哈希值，避免完整数据哈希的开销。
+    """
+    shape_str = f"{df.shape}"
+    # 取前5行和后5行的字符串表示
+    sample_str = df.head(5).to_string() + df.tail(5).to_string()
+    return hashlib.md5((shape_str + sample_str).encode()).hexdigest()[:12]
+
+# 图表缓存装饰器
+def cached_chart(func):
+    """
+    Streamlit 兼容的图表缓存装饰器。
+    在 Streamlit 环境下使用 st.cache_data，否则使用 lru_cache。
+    """
+    if HAS_STREAMLIT:
+        return st.cache_data(ttl=1800, max_entries=CHART_CACHE_SIZE, show_spinner=False)(func)
+    else:
+        return lru_cache(maxsize=CHART_CACHE_SIZE)(func)
+
+
+def get_adaptive_dpi(n_points: int) -> int:
+    """
+    根据数据量动态调整渲染 DPI，平衡质量与性能。
+    
+    Args:
+        n_points: 数据点数量
+    
+    Returns:
+        适合的 DPI 值
+    """
+    if n_points > 10000:
+        return 150  # 大数据集用低 DPI，优先性能
+    elif n_points > 5000:
+        return 300  # 中等数据集
+    elif n_points > 2000:
+        return 450  # 较小数据集
+    else:
+        return 600  # 小数据集用高 DPI
+
+def apply_lod_sampling(predict_df: pd.DataFrame, coords: pd.DataFrame, 
+                       force_full: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame, bool]:
+    """
+    对大数据集应用 LOD（层次细节）抽样。
+    
+    Args:
+        predict_df: 预测结果数据框
+        coords: 坐标数据框
+        force_full: 是否强制使用全部数据
+    
+    Returns:
+        (抽样后的 predict_df, 抽样后的 coords, 是否进行了抽样)
+    """
+    n_points = len(predict_df)
+    
+    if force_full or n_points <= LOD_THRESHOLD:
+        return predict_df, coords, False
+    
+    # 执行抽样
+    sample_n = int(n_points * LOD_SAMPLE_RATIO)
+    sample_indices = np.random.choice(predict_df.index, size=sample_n, replace=False)
+    
+    return predict_df.loc[sample_indices], coords.loc[sample_indices], True
+
+def generate_clean_pie_chart(predict_df, coords, point_size=20, 
+                              progress_callback: Optional[Callable[[float, str], None]] = None):
     """
     生成高分辨率、无边框的饼图背景（透明背景），用于叠加在 Plotly 图表下方。
     使用 matplotlib PatchCollection 优化大规模渲染性能。
+    
+    Args:
+        predict_df: 预测结果数据框
+        coords: 坐标数据框
+        point_size: 点大小（None 为自动计算）
+        progress_callback: 进度回调函数 (progress: 0-1, message: str)
     """
+    def update_progress(pct, msg):
+        if progress_callback:
+            progress_callback(pct, msg)
+    
+    update_progress(0.05, "准备颜色映射...")
+    
     # 准备颜色 (使用智能聚类配色)
     labels = predict_df.columns.tolist()
     color_map = get_color_map(labels, predict_df)
     colors = [color_map[label] for label in labels]
+    
+    update_progress(0.1, "计算画布尺寸...")
     
     # 计算画布大小
     x_range = coords['x'].max() - coords['x'].min()
@@ -30,10 +123,15 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20):
     if y_range == 0: y_range = 1
     aspect_ratio = x_range / y_range
     
-    # 设置高分辨率画布 (提高DPI)
-    dpi = 600
+    # 设置自适应 DPI（性能优化关键）
+    n_points = len(predict_df)
+    dpi = get_adaptive_dpi(n_points)
     base_size = 12
     fig, ax = plt.subplots(figsize=(base_size * aspect_ratio, base_size), dpi=dpi)
+    
+    update_progress(0.15, f"使用 DPI={dpi} (数据点: {n_points})...")
+    
+    update_progress(0.2, "计算最佳点大小...")
     
     # --- 自动计算最佳点大小 ---
     from sklearn.neighbors import NearestNeighbors
@@ -43,6 +141,8 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20):
     distances, _ = nbrs.kneighbors(coords_array)
     avg_spacing = np.median(distances[:, 1])
     
+    update_progress(0.25, "初始化图形对象...")
+    
     # 使用 PatchCollection 优化绘图性能
     from matplotlib.patches import Wedge
     from matplotlib.collections import PatchCollection
@@ -50,7 +150,7 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20):
     # 半径系数经验值
     radius = avg_spacing * 0.42
     
-    print(f"  ℹ️ [Performance] 使用 PatchCollection 批量渲染优化 (半径: {radius:.4f})")
+    print(f"  ℹ️ [Performance] 使用 PatchCollection 批量渲染优化 (DPI: {dpi}, 半径: {radius:.4f})")
     
     wedges = []
     
@@ -59,17 +159,17 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20):
     x_coords = coords['x'].values
     y_coords = coords['y'].values
     
-    # 引入 tqdm 显示进度
-    try:
-        from tqdm import tqdm
-        iterator = tqdm(range(len(predict_df)), desc="构建图形对象", unit="spot")
-    except ImportError:
-        iterator = range(len(predict_df))
-
     # 全局 Top N
     top_n = TOP_N_CATEGORIES
+    total_points = len(predict_df)
+    
+    update_progress(0.3, f"构建 {total_points} 个饼图对象...")
 
-    for i in iterator:
+    for i in range(total_points):
+        # 更新进度（每 10% 更新一次）
+        if i % max(1, total_points // 10) == 0:
+            progress = 0.3 + 0.5 * (i / total_points)
+            update_progress(progress, f"处理点 {i}/{total_points}...")
         # 1. 获取当前点的分布和坐标
         dist = predict_values[i]
         xc, yc = x_coords[i], y_coords[i]
@@ -131,11 +231,13 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20):
     ax.patch.set_alpha(0)
     
     # 保存到 buffer
+    update_progress(0.9, "保存图像...")
     buf = io.BytesIO()
     plt.savefig(buf, format='png', transparent=True, bbox_inches=None, pad_inches=0)
     plt.close(fig)
     buf.seek(0)
     
+    update_progress(1.0, "完成！")
     return Image.open(buf), (ax.get_xlim(), ax.get_ylim())
 
 def get_color_map(labels: List[str], predict_df: Optional[pd.DataFrame] = None) -> Dict[str, str]:
@@ -285,13 +387,15 @@ def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFr
     
     fig.update_layout(
         height=800,
-        autosize=True,
-        margin=dict(l=0, r=0, t=30, b=0),
+        autosize=True,  # 恢复自动调整
+        margin=dict(l=0, r=200, t=30, b=0),
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
         legend=dict(
             title="细胞类型 (饼图颜色)",
-            orientation="v", yanchor="top", y=1, xanchor="left", x=1.02,
+            orientation="v", 
+            yanchor="top", y=1, 
+            xanchor="left", x=1.02,
             itemclick=False, itemdoubleclick=False
         ),
         dragmode='pan'
@@ -372,13 +476,16 @@ def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.Data
         ))
         
     fig.update_layout(
-        height=800, autosize=True,title='主要类型分布',
+        height=800, 
+        autosize=True, # 恢复自动调整
+        title='主要类型分布',
+        margin=dict(l=0, r=150, t=30, b=0), # 显式减少顶部和左侧留白
         yaxis=dict(scaleanchor="x", scaleratio=1, visible=False, showgrid=False),
         xaxis=dict(visible=False, showgrid=False),
         legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02),
         dragmode='pan',
-        plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
-        margin=dict(l=20, r=20, t=50, b=0)
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)'
     )
     return fig
 
@@ -401,8 +508,15 @@ def generate_proportion_bar(predict_df: pd.DataFrame) -> go.Figure:
     fig.update_layout(
         height=dynamic_height, 
         showlegend=False,
-        # 增加左侧边距以显示完整标签
-        margin=dict(l=150)
+        # 增加左侧边距显示标签，增加右侧边距显示 Colorbar
+        margin=dict(l=150, r=100),
+        # 修复 Colorbar 字体颜色
+        coloraxis=dict(
+            colorbar=dict(
+                tickfont=dict(color='white'),
+                title=dict(font=dict(color='white'))
+            )
+        )
     )
     return fig
 
@@ -432,7 +546,15 @@ def generate_heatmap(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame,
             color=display_df['proportion'],
             colorscale='Reds',
             showscale=True,
-            colorbar=dict(title="比例"),
+            colorbar=dict(
+                title=dict(
+                    text="比例",
+                    font=dict(color='white')
+                ),
+                tickfont=dict(color='white'),
+                ticks='',   # 去掉刻度线
+                len=0.9
+            ),
             opacity=1.0
         ),
         text=hover_texts,
@@ -440,11 +562,12 @@ def generate_heatmap(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame,
     ))
     
     fig.update_layout(
+        title=f'单细胞类型热图: {selected_type}',
         height=800, autosize=True,
         yaxis=dict(scaleanchor="x", scaleratio=1, visible=False, showgrid=False),
         xaxis=dict(visible=False, showgrid=False),
         plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
-        dragmode='pan', margin=dict(l=0, r=0, t=30, b=0),
+        dragmode='pan', margin=dict(l=0, r=121.5, t=30, b=0),
     )
     return fig
 
