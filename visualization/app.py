@@ -197,8 +197,7 @@ def main():
                     else:
                         st.warning("⚠️ 必需文件缺失：请务必上传 `predict_result.csv`")
 
-                st.divider()
- 
+
     # === 主界面展示区 ===
     
     # 无数据场景：展示欢迎页与系统简介
