@@ -89,7 +89,8 @@ def main():
             # ------------------- 侧边栏逻辑：数据集选择器 -------------------
             # 下拉菜单 (单独一行，保证宽度和美观)
             selected_dataset_name = st.selectbox(
-                options,
+                "选择数据集",
+                options=options,
                 index=0,
                 label_visibility="visible",
                 key="dataset_selector"  # 绑定 state 以便编程控制选中项
