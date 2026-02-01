@@ -4,6 +4,7 @@ import os
 import base64
 
 def _get_stardust_b64():
+    """读取本地纹理图片并转换为 Base64，如果不存在则回退到 URL"""
     # Try local asset first
     path = os.path.join(os.path.dirname(__file__), "assets", "stardust.png")
     if os.path.exists(path):
@@ -19,7 +20,9 @@ def get_css():
     """
     css_template = """
     <style>
-        /* --- 0. 全局字体与重置 --- */
+        /* ==========================================================================
+           0. 全局设置 & 字体引入 (Global Settings & Fonts)
+           ========================================================================== */
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
         
         :root {
@@ -37,22 +40,26 @@ def get_css():
             scroll-behavior: smooth;
         }
 
-        /* 沉浸式布局：顶部保留适度留白 */
+        /* 隐藏 Streamlit 默认装饰 */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        div[data-testid="stDecoration"] { display: none; }
+
+        /* ==========================================================================
+           1. 布局重构 (Layout Overrides)
+           ========================================================================== */
+        
+        /* 1.1 主内容容器：沉浸式顶部 + 满宽布局 */
         .stMainBlockContainer {
-            padding-top: 3rem !important;   /* 恢复顶部留白 */
+            padding-top: 3rem !important;   /* 顶部保留适度留白 */
             padding-bottom: 2rem !important;
-            margin-top: 0 !important;       /* 取消上提，让内容自然排列 */
-            max-width: 100% !important;
+            margin-top: 0 !important;       /* 自然排列 */
+            max-width: 100% !important;     /* 占满全宽 */
             padding-left: 0.5rem !important;
             padding-right: 0.5rem !important;
         }
-        
-        /* 隐藏顶部彩虹装饰线 */
-        div[data-testid="stDecoration"] {
-            display: none;
-        }
 
-        /* 恢复 Header 但设为透明 */
+        /* 1.2 顶部 Header：完全透明 */
         header {
             background: transparent !important;
             backdrop-filter: none !important;
@@ -62,8 +69,8 @@ def get_css():
             background: transparent !important;
             border-bottom: none !important;
             box-shadow: none !important;
-            height: 3rem !important; /* 减小高度占位 */
-            pointer-events: none !important;
+            height: 3rem !important;
+            pointer-events: none !important; /* 让点击穿透 */
         }
         
         /* 恢复 Header 内按钮交互 */
@@ -73,52 +80,42 @@ def get_css():
             pointer-events: auto !important;
             color: rgba(255, 255, 255, 0.5) !important;
         }
+
+        /* ==========================================================================
+           2. 侧边栏体系 (Sidebar System - Invisible & Locked)
+           ========================================================================== */
         
-        /* --- 1. 沉浸式动态背景 (Aurora Effect) --- */
-        .stApp {
-            background-color: var(--bg-dark);
-            background-image: 
-                radial-gradient(at 0% 0%, rgba(102, 126, 234, 0.15) 0px, transparent 50%),
-                radial-gradient(at 100% 0%, rgba(118, 75, 162, 0.15) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(0, 242, 96, 0.1) 0px, transparent 50%),
-                radial-gradient(at 0% 100%, rgba(5, 117, 230, 0.1) 0px, transparent 50%);
-            background-attachment: fixed;
-            background-size: 100% 100%;
-        }
-        
-        /* 叠加细腻的噪点纹理，增加质感 */
-        .stApp::before {
-            content: "";
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: url("__STARDUST_IMAGE__");
-            opacity: 0.4;
-            pointer-events: none;
-            z-index: 0;
+        /* 2.1 样式重置：完全透明，无边框，无阴影 */
+        section[data-testid="stSidebar"],
+        section[data-testid="stSidebar"] > div {
+            background-color: transparent !important;
+            background: transparent !important;
+            backdrop-filter: none !important;
+            border-right: none !important;
+            box-shadow: none !important;
         }
 
-        /* 禁止拖拽侧边栏 */
-        [data-testid="stSidebarResizeHandle"] {
-            display: none !important;
-            visibility: hidden !important;
-            pointer-events: none !important;
-        }
-        
-        /* 锁定侧边栏宽度，双重保险 */
-        /* 锁定侧边栏宽度，仅在展开时生效 */
+        /* 2.2 尺寸锁定：限制宽度为 300px，收起时归零 */
         section[data-testid="stSidebar"][aria-expanded="true"] {
             min-width: 300px !important;
             max-width: 300px !important;
             width: 300px !important;
         }
         
-        /* 收起时确保宽度归零 */
         section[data-testid="stSidebar"][aria-expanded="false"] {
              min-width: 0 !important;
              max-width: 0 !important;
              width: 0 !important;
         }
 
+        /* 2.3 交互限制：禁止拖拽，隐藏手柄 */
+        [data-testid="stSidebarResizeHandle"] {
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
+
+        /* 2.4 光标管理：全局默认，仅组件可点 */
         /* 暴力覆盖侧边栏所有区域的光标为默认 */
         section[data-testid="stSidebar"],
         section[data-testid="stSidebar"] *,
@@ -137,17 +134,7 @@ def get_css():
             cursor: pointer !important;
         }
 
-        /* --- 2. 侧边栏：完全透明化 (暴力模式) --- */
-        section[data-testid="stSidebar"],
-        section[data-testid="stSidebar"] > div {
-            background-color: transparent !important;
-            background: transparent !important;
-            backdrop-filter: none !important;
-            border-right: none !important;
-            box-shadow: none !important;
-        }
-        
-        /* 侧边栏标题 - 霓虹流光 */
+        /* 侧边栏标题 - 霓虹流光特效 */
         .main-header {
             font-family: 'Outfit', sans-serif;
             font-size: 1.8rem !important;
@@ -162,8 +149,37 @@ def get_css():
             letter-spacing: -0.5px;
         }
 
-        /* --- 3. 按钮体系：未来主义风格 --- */
-        /* Primary Button: 镭射渐变 */
+        /* ==========================================================================
+           3. 全局背景 (Background Effects)
+           ========================================================================== */
+        .stApp {
+            background-color: var(--bg-dark);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(102, 126, 234, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(118, 75, 162, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(0, 242, 96, 0.1) 0px, transparent 50%),
+                radial-gradient(at 0% 100%, rgba(5, 117, 230, 0.1) 0px, transparent 50%);
+            background-attachment: fixed;
+            background-size: 100% 100%;
+        }
+        
+        /* 叠加星尘纹理 */
+        .stApp::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: url("__STARDUST_IMAGE__");
+            opacity: 0.4;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ==========================================================================
+           4. 组件样式 (UI Components)
+           ========================================================================== */
+        
+        /* 4.1 按钮 (Buttons) */
+        /* Primary - 镭射渐变 */
         .stButton > button[kind="primary"],
         .stButton > button[data-testid="baseButton-primary"] {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
@@ -196,7 +212,7 @@ def get_css():
             left: 100%;
         }
 
-        /* Secondary Button: 幽灵边框 + 发光文字 */
+        /* Secondary - 幽灵边框 */
         .stButton > button[kind="secondary"],
         .stButton > button[data-testid="baseButton-secondary"],
         section[data-testid="stSidebar"] .stButton > button:not([kind="primary"]) {
@@ -218,8 +234,7 @@ def get_css():
             text-shadow: 0 0 8px rgba(102, 126, 234, 0.6) !important;
         }
 
-        /* --- 4. 仪表盘组件 (Cards & Layout) --- */
-        /* 指标卡片 (Metrics) */
+        /* 4.2 数据指标卡 (Metrics) */
         div[data-testid="stMetric"] {
             background: rgba(30, 30, 40, 0.4) !important;
             border: 1px solid rgba(255, 255, 255, 0.05) !important;
@@ -249,7 +264,56 @@ def get_css():
             text-shadow: 0 0 10px rgba(0, 242, 96, 0.3);
         }
 
-        /* --- 5. 落地页炫酷效果 (Holographic Cards) --- */
+        /* 4.3 输入控件 (Inputs & Selects) */
+        div[data-baseweb="select"] > div,
+        .stTextInput > div > div > input {
+            background: rgba(40, 40, 60, 0.6) !important;
+            border: 1px solid rgba(102, 126, 234, 0.3) !important;
+            border-radius: 10px !important;
+            color: #fff !important;
+            transition: all 0.3s ease !important;
+        }
+        
+        div[data-baseweb="select"] > div:hover,
+        .stTextInput > div > div > input:focus {
+            border-color: rgba(102, 126, 234, 0.8) !important;
+            box-shadow: 0 0 12px rgba(102, 126, 234, 0.2) !important;
+        }
+
+        /* 4.4 Tab 标签页 */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 8px;
+            background: rgba(30, 30, 50, 0.3);
+            border-radius: 12px;
+            padding: 4px;
+        }
+        
+        .stTabs [data-baseweb="tab-list"] button {
+            background: transparent !important;
+            border: none !important;
+            color: rgba(255, 255, 255, 0.6) !important;
+            border-radius: 8px !important;
+            padding: 8px 16px !important;
+            transition: all 0.3s ease !important;
+        }
+        
+        .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {
+            color: #fff !important;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.3), rgba(118, 75, 162, 0.3)) !important;
+            box-shadow: 0 0 15px rgba(102, 126, 234, 0.2) !important;
+        }
+
+        /* 4.5 Expander 折叠面板 */
+        .streamlit-expanderHeader {
+            background: rgba(40, 40, 60, 0.4) !important;
+            border-radius: 10px !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+
+        /* ==========================================================================
+           5. 落地页 / Hero Section
+           ========================================================================== */
+        
         .landing-wrapper {
             max-width: 1200px;
             margin: 0 auto;
@@ -263,7 +327,7 @@ def get_css():
             box-shadow: 0 40px 100px rgba(0,0,0,0.8);
             margin-bottom: 2rem;
             border: 1px solid rgba(255,255,255,0.05);
-            height: 480px; /* 增加高度，营造电影级宽屏感 */
+            height: 480px; /* 电影级高度 */
         }
         
         .banner-image {
@@ -285,17 +349,11 @@ def get_css():
             100% { transform: scale(1.15); }
         }
         
-        /* 移除只需 hover 的旧样式，现在是自动播放 */
-        .banner-container:hover .banner-image {
-            /* 保持动画运行，不做额外处理 */
-        }
-        
-        /* 电影级暗角 + 扫描线纹理 */
+        /* 移除两侧强烈的黑边遮罩，仅保留底部文字衬托 */
         .banner-container::after {
             content: '';
             position: absolute;
             inset: 0;
-            /* 移除两侧强烈的黑边遮罩，仅在底部保留轻微渐变以衬托文字 */
             background: linear-gradient(to bottom, transparent 50%, rgba(14, 17, 23, 0.6) 100%);
             z-index: 1;
         }
@@ -311,11 +369,12 @@ def get_css():
             pointer-events: none;
         }
 
+        /* Hero 文字内容容器 */
         .hero-section {
             position: absolute;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -40%); /* 略微上移视觉中心 */
+            transform: translate(-50%, -40%);
             z-index: 10;
             text-align: center;
             width: 100%;
@@ -326,7 +385,6 @@ def get_css():
             justify-content: center;
         }
 
-        /* 英文装饰线：极简工业风 */
         .hero-tagline {
             font-family: 'JetBrains Mono', monospace;
             font-size: 0.9rem;
@@ -346,17 +404,13 @@ def get_css():
             letter-spacing: -2px;
             line-height: 1.1;
             margin: 0.5rem 0 1.5rem 0;
-            
-            /* 冰川质感渐变 */
             background: linear-gradient(180deg, #ffffff 10%, #a5b4fc 60%, #667eea 90%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            
             filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.8));
             position: relative;
         }
         
-        /* 标题两侧的光标装饰 */
         .hero-title-main::before, .hero-title-main::after {
             content: '+';
             font-size: 1.5rem;
@@ -372,7 +426,6 @@ def get_css():
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 50px;
             padding: 10px 30px;
-            
             color: rgba(255,255,255,0.9);
             font-size: 1.1rem;
             letter-spacing: 1px;
@@ -395,6 +448,7 @@ def get_css():
             50% { opacity: 0.4; text-shadow: none; }
         }
 
+        /* 功能卡片布局 */
         .features-container {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -427,44 +481,23 @@ def get_css():
             opacity: 0;
             transition: opacity 0.4s;
         }
-
-        .bio-card:hover::before {
-            opacity: 1;
-        }
+        .bio-card:hover::before { opacity: 1; }
 
         .card-icon-large {
             font-size: 3rem;
             margin-bottom: 1.5rem;
             display: block;
         }
-
         .card-title-main {
             font-size: 1.4rem;
             font-weight: 700;
             margin-bottom: 1rem;
             color: #fff;
         }
-
         .card-description {
             font-size: 0.95rem;
             color: rgba(255, 255, 255, 0.5);
             line-height: 1.6;
-        }
-        
-        .step-guide {
-            margin-top: 5rem;
-            background: rgba(255, 255, 255, 0.02);
-            border-radius: 20px;
-            padding: 3rem;
-            border: 1px dashed rgba(255, 255, 255, 0.1);
-            text-align: center;
-        }
-
-        .step-title {
-            color: #00f260;
-            font-weight: 600;
-            font-size: 1.1rem;
-            margin-bottom: 1rem;
         }
         
         /* 侧边栏引导箭头特效 */
