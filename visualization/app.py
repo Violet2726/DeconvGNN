@@ -89,7 +89,6 @@ def main():
             # ------------------- 侧边栏逻辑：数据集选择器 -------------------
             # 下拉菜单 (单独一行，保证宽度和美观)
             selected_dataset_name = st.selectbox(
-                "当前数据集",
                 options,
                 index=0,
                 label_visibility="visible",
@@ -159,14 +158,18 @@ def main():
                             
                             def on_upload_confirm():
                                 if new_name:
-                                    # 存储上传文件到 session state
-                                    st.session_state.uploaded_data = {
-                                        'name': new_name,
-                                        'files': uploaded_files
-                                    }
-                                    st.session_state.data_sources[new_name] = "__UPLOADED__"
-                                    st.session_state.dataset_selector = new_name
-                                    st.session_state.show_import = False
+                                    # 立即解析并缓存数据，实现持久化（防止 rerun 后文件流丢失）
+                                    pdf, cdf = data_loader.load_from_uploaded_files(uploaded_files)
+                                    if pdf is not None:
+                                        st.session_state.uploaded_data_cache = {
+                                            'predict_df': pdf,
+                                            'coords': cdf
+                                        }
+                                        st.session_state.data_sources[new_name] = "__UPLOADED__"
+                                        st.session_state.dataset_selector = new_name
+                                        st.session_state.show_import = False
+                                    else:
+                                        st.toast("❌ 数据解析失败，请检查文件格式", icon="❌")
                                 else:
                                     st.error("请输入名称")
                             
@@ -242,13 +245,13 @@ def main():
         
     # 2. 加载数据
     if result_dir == "__UPLOADED__":
-        # 云端模式：从上传的文件加载
-        if 'uploaded_data' in st.session_state and st.session_state.uploaded_data:
-            predict_df, coords = data_loader.load_from_uploaded_files(
-                st.session_state.uploaded_data['files']
-            )
+        # 云端模式：从 Session State 缓存加载
+        if 'uploaded_data_cache' in st.session_state:
+            predict_df = st.session_state.uploaded_data_cache['predict_df']
+            coords = st.session_state.uploaded_data_cache['coords']
         else:
-            st.error("❌ 上传的数据已丢失，请重新上传")
+            st.error("❌ 上传的数据缓存已失效，请重新上传")
+            return
             return
     else:
         # 本地模式：从文件路径加载

@@ -93,6 +93,7 @@ def load_from_uploaded_files(uploaded_files: list) -> Tuple[Optional[pd.DataFram
         filename = uploaded_file.name.lower()
         
         try:
+            uploaded_file.seek(0)  # 确保文件指针在开头
             if "predict" in filename and filename.endswith(".csv"):
                 predict_df = pd.read_csv(uploaded_file, index_col=0)
                 print(f"[DataLoader] Loaded predict_result from upload: {uploaded_file.name}")
