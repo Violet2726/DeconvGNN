@@ -321,14 +321,10 @@ def get_color_map(labels: List[str], predict_df: Optional[pd.DataFrame] = None) 
     return dict(zip(sorted_labels, colors))
 
 @cached_chart
-def generate_plotly_scatter(cache_key: str, _coords_for_plot: pd.DataFrame, _predict_df: pd.DataFrame, 
-                          hover_count: int, _bg_img: Any, bounds: Tuple[float, float], 
+def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame, 
+                          hover_count: int, bg_img: Any, bounds: Tuple[float, float], 
                           color_map: Dict[str, str]) -> go.Figure:
     """生成空间组成分布散点图 (Tab 1)，配合背景饼图使用。"""
-    # 映射参数名以适配原有逻辑
-    coords_for_plot = _coords_for_plot
-    predict_df = _predict_df
-    bg_img = _bg_img
     import plotly.express as px
     import plotly.graph_objects as go
     
@@ -422,12 +418,9 @@ def generate_plotly_scatter(cache_key: str, _coords_for_plot: pd.DataFrame, _pre
     return fig
 
 @cached_chart
-def generate_dominant_scatter(cache_key: str, _coords_for_plot: pd.DataFrame, _predict_df: pd.DataFrame,
+def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame,
                              hover_count: int, color_map: Dict[str, str]) -> go.Figure:
     """生成优势细胞类型散点图 (Tab 2)，自适应调整点大小。"""
-    # 映射参数名以适配原有逻辑
-    coords_for_plot = _coords_for_plot
-    predict_df = _predict_df
     import plotly.graph_objects as go
     
     display_df = coords_for_plot.copy()
@@ -513,9 +506,8 @@ def generate_dominant_scatter(cache_key: str, _coords_for_plot: pd.DataFrame, _p
     return fig
 
 @cached_chart
-def generate_proportion_bar(cache_key: str, _predict_df: pd.DataFrame) -> go.Figure:
+def generate_proportion_bar(predict_df: pd.DataFrame) -> go.Figure:
     """为 Tab 3 生成柱状图"""
-    predict_df = _predict_df
     import plotly.express as px
     mean_proportions = predict_df.mean().sort_values(ascending=True)
     fig = px.bar(
@@ -546,11 +538,9 @@ def generate_proportion_bar(cache_key: str, _predict_df: pd.DataFrame) -> go.Fig
     return fig
 
 @cached_chart
-def generate_heatmap(cache_key: str, _coords_for_plot: pd.DataFrame, _predict_df: pd.DataFrame, 
+def generate_heatmap(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame, 
                     selected_type: str) -> go.Figure:
     """为 Tab 4 生成热图"""
-    coords_for_plot = _coords_for_plot
-    predict_df = _predict_df
     import plotly.graph_objects as go
     
     display_df = coords_for_plot.copy()

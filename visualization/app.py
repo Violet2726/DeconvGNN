@@ -337,7 +337,7 @@ def main():
                 cell_type_color_map = utils.get_color_map(predict_df.columns.tolist(), predict_df)
 
                 fig = utils.generate_plotly_scatter(
-                    selected_dataset_name, coords_for_plot, predict_df, hover_count_tab1, 
+                    coords_for_plot, predict_df, hover_count_tab1, 
                     bg_img, (xlim, ylim), cell_type_color_map
                 )
                 
@@ -365,9 +365,9 @@ def main():
                 unique_types = sorted(predict_df.columns.tolist())
                 color_map = utils.get_color_map(unique_types, predict_df)
                 
-                # 使用缓存装饰器生成图表 (传入 dataset name 作为缓存键)
+                # 使用缓存装饰器生成图表
                 fig = utils.generate_dominant_scatter(
-                    selected_dataset_name, plot_coords, plot_predict_df, hover_count, color_map
+                    plot_coords, plot_predict_df, hover_count, color_map
                 )
                 
                 st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False, 'responsive': True})
@@ -384,7 +384,7 @@ def main():
         # --- Tab 3: 整体比例统计 (Bar Chart) ---
         with tabs[2]:
             # st.subheader 已移除
-            fig = utils.generate_proportion_bar(selected_dataset_name, predict_df)
+            fig = utils.generate_proportion_bar(predict_df)
             st.plotly_chart(fig, use_container_width=True)
 
         # --- Tab 4: 单细胞类型热图 (Heatmap) ---
@@ -392,7 +392,7 @@ def main():
             selected_type = st.selectbox("🔬 选择要查看的细胞类型", cell_types, index=0)
 
             if coords_for_plot is not None:
-                fig = utils.generate_heatmap(selected_dataset_name, coords_for_plot, predict_df, selected_type)
+                fig = utils.generate_heatmap(coords_for_plot, predict_df, selected_type)
                 st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False, 'responsive': True})
             else:
                 # 尝试显示静态图 fallback
