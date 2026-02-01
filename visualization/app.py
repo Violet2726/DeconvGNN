@@ -49,7 +49,9 @@ def main():
             st.rerun()
             
         st.divider()
-        st.header("数据集管理", help="""目标文件夹必须包含：`predict_result.csv` `coordinates.csv`""")
+        st.header("数据集管理", help="""目标文件夹必须包含：  
+            `predict_result.csv`  
+            `coordinates.csv`""")
         
         # 初始化会话数据源
         if 'data_sources' not in st.session_state:

@@ -37,14 +37,13 @@ def get_css():
             scroll-behavior: smooth;
         }
 
-        /* 沉浸式布局：移除顶部留白 */
-        /* 沉浸式布局：移除顶部留白 */
+        /* 沉浸式布局：顶部保留适度留白 */
         .stMainBlockContainer {
-            padding-top: 1rem !important; /* 顶部保留少量呼吸感 */
+            padding-top: 3rem !important;   /* 恢复顶部留白 */
             padding-bottom: 2rem !important;
-            margin-top: -3.5rem !important; /* 核心：向上提拉内容 */
-            max-width: 100% !important;     /* 占满全宽 */
-            padding-left: 0.5rem !important; /* 极窄边距 */
+            margin-top: 0 !important;       /* 取消上提，让内容自然排列 */
+            max-width: 100% !important;
+            padding-left: 0.5rem !important;
             padding-right: 0.5rem !important;
         }
         
@@ -226,18 +225,27 @@ def get_css():
         }
         
         .banner-image {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            object-position: center 60%; /* 调整焦点位置 */
-            transform: scale(1.1);
-            filter: brightness(0.9) contrast(1.1) saturate(1.1);
-            transition: transform 10s ease;
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover !important;
+            object-position: center center !important;
+            transform: scale(1.02);
+            filter: brightness(0.48) contrast(1.1) saturate(1.1);
+            transition: none;
+            min-width: 100%;
+            min-height: 100%;
+            display: block;
+            animation: cinematic-zoom 20s ease-in-out infinite alternate;
+        }
+
+        @keyframes cinematic-zoom {
+            0% { transform: scale(1.02); }
+            100% { transform: scale(1.15); }
         }
         
-        /* 缓慢缩放动效，让画面“活”起来 */
+        /* 移除只需 hover 的旧样式，现在是自动播放 */
         .banner-container:hover .banner-image {
-            transform: scale(1.15);
+            /* 保持动画运行，不做额外处理 */
         }
         
         /* 电影级暗角 + 扫描线纹理 */
