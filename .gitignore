@@ -1,11 +1,11 @@
 *.ipynb
-output/*.pkl
 *.pyc
 *.jpg
 env/*
 *.xml
 *.iml
-.idea
 
-data
+.idea
 _miniconda
+data
+file
