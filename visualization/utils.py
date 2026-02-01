@@ -320,7 +320,7 @@ def get_color_map(labels: List[str], predict_df: Optional[pd.DataFrame] = None) 
     
     return dict(zip(sorted_labels, colors))
 
-@cached_chart
+
 def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame, 
                           hover_count: int, bg_img: Any, bounds: Tuple[float, float], 
                           color_map: Dict[str, str]) -> go.Figure:
@@ -417,7 +417,7 @@ def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFr
     )
     return fig
 
-@cached_chart
+
 def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame,
                              hover_count: int, color_map: Dict[str, str]) -> go.Figure:
     """生成优势细胞类型散点图 (Tab 2)，自适应调整点大小。"""
@@ -505,7 +505,7 @@ def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.Data
     )
     return fig
 
-@cached_chart
+
 def generate_proportion_bar(predict_df: pd.DataFrame) -> go.Figure:
     """为 Tab 3 生成柱状图"""
     import plotly.express as px
@@ -537,7 +537,7 @@ def generate_proportion_bar(predict_df: pd.DataFrame) -> go.Figure:
     )
     return fig
 
-@cached_chart
+
 def generate_heatmap(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame, 
                     selected_type: str) -> go.Figure:
     """为 Tab 4 生成热图"""
