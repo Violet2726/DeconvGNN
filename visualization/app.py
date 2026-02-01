@@ -153,8 +153,6 @@ def main():
             
             rename_dialog(base_name, st.session_state.temp_import_path)
 
-        st.divider()
-
         # Cloud Import Logic (Only visible if Cloud mode AND show_import is True)
         if is_cloud and st.session_state.show_import:
              with st.container():
