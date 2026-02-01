@@ -363,7 +363,8 @@ def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFr
     fig = px.scatter(
         plot_df, x='x', y='y',
         hover_name='hover_text',
-        title='空间组成分布'
+        title='空间组成分布',
+        render_mode='webgl'  # 启用 WebGL 渲染，大幅降低内存
     )
     
     fig.update_traces(
@@ -476,7 +477,7 @@ def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.Data
                      text += f"{ct}: {proportion:.2%}<br>"
             hover_texts.append(text)
 
-        fig.add_trace(go.Scatter(
+        fig.add_trace(go.Scattergl(
             x=subset['x'], y=subset['y'],
             mode='markers',
             name=cell_type,
@@ -556,7 +557,7 @@ def generate_heatmap(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame,
     adaptive_size = min(15, adaptive_size)
     
     fig = go.Figure()
-    fig.add_trace(go.Scatter(
+    fig.add_trace(go.Scattergl(
         x=display_df['x'], y=display_df['y'],
         mode='markers',
         marker=dict(
