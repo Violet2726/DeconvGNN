@@ -164,7 +164,7 @@ def main():
                     "上传数据文件",
                     type=["csv"],
                     accept_multiple_files=True,
-                    help="请上传 predict_result.csv 和 coordinates.csv",
+                    help="请上传 'predict_result.csv' 和 'coordinates.csv'",
                     key="cloud_uploader"
                 )
                 
