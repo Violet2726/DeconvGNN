@@ -334,7 +334,7 @@ def main():
                 else:
                     fig = st.session_state.figure_cache[tab2_cache_key]
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False, 'responsive': True})
                 st.caption("🖱️ 交互贴士：通过点击右侧图例可进行细胞类型筛选；双击可切换独显/全选模式。")
             else:
                 st.warning("⚠️ 数据异常：该数据集无法进行优势亚群聚类映射。")
@@ -364,7 +364,7 @@ def main():
                 else:
                     fig = st.session_state.figure_cache[tab4_cache_key]
                 
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False, 'responsive': True})
             else:
                 st.warning("⚠️ 提示：缺少该样本的空间坐标。")
         
