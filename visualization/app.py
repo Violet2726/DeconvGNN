@@ -158,15 +158,6 @@ def main():
         # Cloud Import Logic (Only visible if Cloud mode AND show_import is True)
         if is_cloud and st.session_state.show_import:
              with st.container():
-                st.markdown("#### <i class='fa-solid fa-cloud-arrow-up'></i> 导入新项目", unsafe_allow_html=True)
-                
-                uploaded_files = st.file_uploader(
-                    "上传数据文件",
-                    type=["csv"],
-                    accept_multiple_files=True,
-                    help="请上传 'predict_result.csv' 和 'coordinates.csv'",
-                    key="cloud_uploader"
-                )
                 
                 if uploaded_files:
                     file_names = [f.name.lower() for f in uploaded_files]
