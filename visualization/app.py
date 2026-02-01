@@ -279,19 +279,6 @@ def main():
         
         st.divider()
         
-        # ========== 图表缓存（减少侧边栏切换时的重渲染） ==========
-        # 使用数据指纹作为缓存键
-        cache_key = f"{selected_dataset_name}_{len(predict_df)}_{len(cell_types)}"
-        if 'chart_cache' not in st.session_state:
-            st.session_state.chart_cache = {}
-        if 'chart_cache_key' not in st.session_state:
-            st.session_state.chart_cache_key = None
-        
-        # 数据集变更时清除缓存
-        if st.session_state.chart_cache_key != cache_key:
-            st.session_state.chart_cache = {}
-            st.session_state.chart_cache_key = cache_key
-        
         # 创建 Tab 标签页 (使用更现代的 Emoji)
         tabs = st.tabs([
             "🧩 空间组分图谱", 
@@ -350,7 +337,7 @@ def main():
                 cell_type_color_map = utils.get_color_map(predict_df.columns.tolist(), predict_df)
 
                 fig = utils.generate_plotly_scatter(
-                    coords_for_plot, predict_df, hover_count_tab1, 
+                    selected_dataset_name, coords_for_plot, predict_df, hover_count_tab1, 
                     bg_img, (xlim, ylim), cell_type_color_map
                 )
                 
@@ -374,20 +361,14 @@ def main():
                 plot_predict_df = predict_df
                 plot_coords = coords_for_plot
                 
-                # 使用缓存键检查是否需要重新生成图表
-                tab2_cache_key = f"tab2_{hover_count}"
+                # 颜色映射
+                unique_types = sorted(predict_df.columns.tolist())
+                color_map = utils.get_color_map(unique_types, predict_df)
                 
-                if tab2_cache_key not in st.session_state.chart_cache:
-                    # 颜色映射
-                    unique_types = sorted(predict_df.columns.tolist())
-                    color_map = utils.get_color_map(unique_types, predict_df)
-                    
-                    fig = utils.generate_dominant_scatter(
-                        plot_coords, plot_predict_df, hover_count, color_map
-                    )
-                    st.session_state.chart_cache[tab2_cache_key] = fig
-                else:
-                    fig = st.session_state.chart_cache[tab2_cache_key]
+                # 使用缓存装饰器生成图表 (传入 dataset name 作为缓存键)
+                fig = utils.generate_dominant_scatter(
+                    selected_dataset_name, plot_coords, plot_predict_df, hover_count, color_map
+                )
                 
                 st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False, 'responsive': True})
                 st.caption(
@@ -403,7 +384,7 @@ def main():
         # --- Tab 3: 整体比例统计 (Bar Chart) ---
         with tabs[2]:
             # st.subheader 已移除
-            fig = utils.generate_proportion_bar(predict_df)
+            fig = utils.generate_proportion_bar(selected_dataset_name, predict_df)
             st.plotly_chart(fig, use_container_width=True)
 
         # --- Tab 4: 单细胞类型热图 (Heatmap) ---
@@ -411,7 +392,7 @@ def main():
             selected_type = st.selectbox("🔬 选择要查看的细胞类型", cell_types, index=0)
 
             if coords_for_plot is not None:
-                fig = utils.generate_heatmap(coords_for_plot, predict_df, selected_type)
+                fig = utils.generate_heatmap(selected_dataset_name, coords_for_plot, predict_df, selected_type)
                 st.plotly_chart(fig, use_container_width=True, config={'scrollZoom': True, 'displaylogo': False, 'responsive': True})
             else:
                 # 尝试显示静态图 fallback
