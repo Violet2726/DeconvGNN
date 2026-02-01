@@ -9,10 +9,17 @@ import numpy as np
 import os
 from pathlib import Path
 
-# --- 本地模块 ---
-import visualization.styles as styles
-import visualization.data_loader as data_loader
-import visualization.utils as utils
+# --- 兼容导入 (适配本地开发与 Streamlit Cloud 部署) ---
+try:
+    # 尝试作为模块导入 (当工作目录是项目根目录时)
+    import visualization.styles as styles
+    import visualization.data_loader as data_loader
+    import visualization.utils as utils
+except ImportError:
+    # 尝试直接导入 (当工作目录是 visualization 目录时，例如 Streamlit Cloud 默认行为)
+    import styles
+    import data_loader
+    import utils
 
 # --- 1. 页面配置 ---
 st.set_page_config(
