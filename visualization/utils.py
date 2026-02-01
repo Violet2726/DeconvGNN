@@ -13,33 +13,31 @@ from matplotlib.axes import Axes
 import plotly.graph_objects as go
 from pathlib import Path
 
-# Streamlit 缓存（延迟导入避免循环依赖）
+# --- 运行时环境检测与 Streamlit 兼容层 ---
 try:
     import streamlit as st
     HAS_STREAMLIT = True
 except ImportError:
     HAS_STREAMLIT = False
 
-# Top N 配置：只显示前 N 个最大的类别
-TOP_N_CATEGORIES = 4
+# 可视化算法配置
+TOP_N_CATEGORIES = 4  # 空间饼图仅渲染占比前 N 的类别以保证可读性
 
-# ========== 性能优化配置 ==========
-LOD_THRESHOLD = 5000  # 超过此点数启用 LOD 抽样
-LOD_SAMPLE_RATIO = 0.3  # LOD 模式下的抽样比例
-CHART_CACHE_SIZE = 16  # 图表缓存数量
+# 渲染性能优化参数
+LOD_THRESHOLD = 5000     # 启用细节层次(LOD)采样的阈值
+LOD_SAMPLE_RATIO = 0.3    # LOD 模式下的下采样比例
+CHART_CACHE_SIZE = 16     # 内存中驻留的图表缓存上限
 
-# ========== 环境检测 ==========
 def is_cloud_environment() -> bool:
     """
-    检测是否在 Streamlit Cloud 环境中运行。
-    用于在 UI 中显示/隐藏不适用于云端的功能。
+    判断当前应用是否运行在 Streamlit Cloud 云端环境。
+    用于区分本地文件交互与云端文件上传逻辑。
     """
     import os
-    # Streamlit Cloud 会设置这些环境变量
     return (
         os.environ.get("STREAMLIT_SHARING_MODE") is not None or
         os.environ.get("IS_STREAMLIT_CLOUD") is not None or
-        os.path.exists("/mount/src")  # Streamlit Cloud 特有的挂载路径
+        os.path.exists("/mount/src")  # Streamlit Cloud 容器特有路径
     )
 
 def get_data_fingerprint(df: pd.DataFrame) -> str:
@@ -52,25 +50,15 @@ def get_data_fingerprint(df: pd.DataFrame) -> str:
     sample_str = df.head(5).to_string() + df.tail(5).to_string()
     return hashlib.md5((shape_str + sample_str).encode()).hexdigest()[:12]
 
-# 图表缓存装饰器
+# 智能缓存装饰器：在 Streamlit 模式下启用 st.cache_data，否则回退至 lru_cache
 def cached_chart(func):
-    """
-    Streamlit 兼容的图表缓存装饰器。
-    在 Streamlit 环境下使用 st.cache_data，否则使用 lru_cache。
-    """
     if HAS_STREAMLIT:
         return st.cache_data(ttl=1800, max_entries=CHART_CACHE_SIZE, show_spinner=False)(func)
     else:
         return lru_cache(maxsize=CHART_CACHE_SIZE)(func)
 
-# ========== 路径配置 ==========
-BASE_DIR = None # Will be set dynamically if needed, but for now we use relative or file-based
-try:
-    BASE_DIR = Path(__file__).parent
-except NameError:
-    BASE_DIR = Path(".")
-
-ASSETS_DIR = BASE_DIR / "assets"
+# --- 资源路径体系配置 ---
+ASSETS_DIR = Path(__file__).parent / "assets"
 LOGO_PATH = ASSETS_DIR / "logo.png"
 BANNER_PATH = ASSETS_DIR / "banner.png"
 
@@ -85,42 +73,24 @@ def get_base64_image(image_path: str) -> str:
 
 def get_adaptive_dpi(n_points: int) -> int:
     """
-    根据数据量动态调整渲染 DPI，平衡质量与性能。
-    
-    Args:
-        n_points: 数据点数量
-    
-    Returns:
-        适合的 DPI 值
+    根据数据规模动态调整渲染 DPI，在显示效果与 CPU 占用间取得最优平衡。
     """
-    if n_points > 10000:
-        return 150  # 大数据集用低 DPI，优先性能
-    elif n_points > 5000:
-        return 300  # 中等数据集
-    elif n_points > 2000:
-        return 450  # 较小数据集
-    else:
-        return 600  # 小数据集用高 DPI
+    if n_points > 10000: return 150
+    elif n_points > 5000: return 300
+    elif n_points > 2000: return 450
+    else: return 600
 
 def apply_lod_sampling(predict_df: pd.DataFrame, coords: pd.DataFrame, 
                        force_full: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame, bool]:
     """
-    对大数据集应用 LOD（层次细节）抽样。
-    
-    Args:
-        predict_df: 预测结果数据框
-        coords: 坐标数据框
-        force_full: 是否强制使用全部数据
-    
-    Returns:
-        (抽样后的 predict_df, 抽样后的 coords, 是否进行了抽样)
+    对超大规模观测数据集应用 LOD (细节层次) 采样。
     """
     n_points = len(predict_df)
     
     if force_full or n_points <= LOD_THRESHOLD:
         return predict_df, coords, False
     
-    # 执行抽样
+    # 执行随机均匀下采样
     sample_n = int(n_points * LOD_SAMPLE_RATIO)
     sample_indices = np.random.choice(predict_df.index, size=sample_n, replace=False)
     
@@ -129,14 +99,9 @@ def apply_lod_sampling(predict_df: pd.DataFrame, coords: pd.DataFrame,
 def generate_clean_pie_chart(predict_df, coords, point_size=20, 
                               progress_callback: Optional[Callable[[float, str], None]] = None):
     """
-    生成高分辨率、无边框的饼图背景（透明背景），用于叠加在 Plotly 图表下方。
-    使用 matplotlib PatchCollection 优化大规模渲染性能。
-    
-    Args:
-        predict_df: 预测结果数据框
-        coords: 坐标数据框
-        point_size: 点大小（None 为自动计算）
-        progress_callback: 进度回调函数 (progress: 0-1, message: str)
+    高性能饼图背景生成器。
+    使用 Matplotlib PatchCollection 批量化渲染数万个微型饼图，生成透明背景的高清 PNG。
+    该图片随后会被嵌入 Plotly 面板作为图层背景。
     """
     def update_progress(pct, msg):
         if progress_callback:
@@ -167,15 +132,14 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
     
     update_progress(0.2, "计算最佳点大小...")
     
-    # --- 自动计算最佳点大小 ---
+    # --- 位点间距智能计算：基于最邻近索引 (KNN) ---
     from sklearn.neighbors import NearestNeighbors
     coords_array = np.column_stack((coords['x'], coords['y']))
-    # 计算最近邻距离的中位数作为平均间距
     nbrs = NearestNeighbors(n_neighbors=2).fit(coords_array)
     distances, _ = nbrs.kneighbors(coords_array)
-    avg_spacing = np.median(distances[:, 1])
+    avg_spacing = np.median(distances[:, 1]) # 获取位点平均步长
     
-    update_progress(0.25, "初始化图形对象...")
+    update_progress(0.25, "正在构建图形集合 (PatchCollection)...")
     
     # 使用 PatchCollection 优化绘图性能
     from matplotlib.patches import Wedge
@@ -184,7 +148,7 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
     # 半径系数经验值
     radius = avg_spacing * 0.42
     
-    print(f"  ℹ️ [Performance] 使用 PatchCollection 批量渲染优化 (DPI: {dpi}, 半径: {radius:.4f})")
+    print(f"  ℹ️ [性能优化] 使用 PatchCollection 批量渲染 (DPI: {dpi}, 半径: {radius:.4f})")
     
     wedges = []
     
@@ -243,7 +207,7 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
 
     # 4. 一次性添加到 Axes
     if wedges:
-        print(f"  ℹ️ [Rendering] 正在渲染 {len(wedges)} 个扇形图层...")
+        print(f"  ℹ️ [图像渲染] 正在渲染 {len(wedges)} 个扇形图层...")
         # match_original=True 确保保留每个 Wedge 的颜色
         p = PatchCollection(wedges, match_original=True)
         ax.add_collection(p)
@@ -276,15 +240,11 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
 
 def get_color_map(labels: List[str], predict_df: Optional[pd.DataFrame] = None) -> Dict[str, str]:
     """
-    生成标签列表的颜色映射表。
+    全局颜色映射表生成器。
     
-    [智能配色模式]
-    如果提供了 predict_df，则计算细胞类型间的空间相关性，并进行层次聚类。
-    排序后的细胞类型将在色相环(Hue Cycle)上相邻，从而实现：
-    "空间分布相似的细胞类型，颜色也相近"（符合学术界 co-localization 可视化标准）。
-    
-    [默认模式]
-    如果未提供 predict_df，则按字母序排列。
+    [Co-localization 配色引擎]:
+    如果提供了 predict_df，则通过 Ward 凝聚层次聚类分析细胞类型间的空间相关性。
+    在色相环 (HSL Cycle) 上为空间分布相近的细胞分配相邻颜色，从而揭示微环境特征。
     """
     import matplotlib.colors as mcolors
     import colorsys
@@ -344,7 +304,10 @@ def get_color_map(labels: List[str], predict_df: Optional[pd.DataFrame] = None) 
 def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame, 
                           hover_count: int, bg_img: Any, bounds: Tuple[float, float], 
                           color_map: Dict[str, str]) -> go.Figure:
-    """生成空间组成分布散点图 (Tab 1)，配合背景饼图使用。"""
+    """
+    核心图表插件：空间组分交互散点图 (Tab 1)。
+    采用多层渲染技术：底层为 Matplotlib 计算的饼图纹理，顶层为高性能投影交互层。
+    """
     import plotly.express as px
     import plotly.graph_objects as go
     
@@ -441,7 +404,10 @@ def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFr
 
 def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame,
                              hover_count: int, color_map: Dict[str, str]) -> go.Figure:
-    """生成优势细胞类型散点图 (Tab 2)，自适应调整点大小。"""
+    """
+    核心图表插件：优势细胞亚群映射图 (Tab 2)。
+    基于 WebGL 渲染，支持位点大小与数据规模的自适应缩放。
+    """
     import plotly.graph_objects as go
     
     display_df = coords_for_plot.copy()
@@ -458,7 +424,7 @@ def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.Data
     
     display_df['pixel_size'] = adaptive_size
     
-    print(f"  ℹ️ [Plotly] 自适应点大小: {adaptive_size:.2f} (N={n_points})")
+    print(f"  ℹ️ [图形交互] 自适应点大小: {adaptive_size:.2f} (点数={n_points})")
         
     # 修改：不再强制字母排序，而是跟随 color_map 的键顺序（即聚类顺序）
     # unique_types = sorted(predict_df.columns.tolist())
@@ -611,7 +577,7 @@ def generate_heatmap(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame,
     return fig
 
 def save_pie_chart_background(img: Image.Image, xlim: float, ylim: float, result_dir: str) -> None:
-    """保存生成的饼图背景及元数据 (xlim/ylim)。"""
+    """将实时渲染的背景图及其元数据持久化至磁盘，加速后续加载。"""
     import os
     import json
     
@@ -626,7 +592,7 @@ def save_pie_chart_background(img: Image.Image, xlim: float, ylim: float, result
          print(f"警告: 无法保存背景缓存: {e}")
 
 def open_folder_dialog() -> Optional[str]:
-    """弹出系统文件夹选择框 (仅本地运行有效)。"""
+    """调取操作系统原生文件夹选择对话框 (仅限本地环境)。"""
     try:
         import tkinter as tk
         from tkinter import filedialog
@@ -693,7 +659,7 @@ def handle_visualization_generation(paths):
     import pandas as pd
     
     print("\n" + "="*60)
-    print("[Visualization] 生成交互式可视化资源 (Top 4 饼图)...")
+    print("[可视化] 正在生成交互式可视化资源 (Top 4 饼图)...")
     print("="*60)
     
     res_path = os.path.join(paths['output_path'], 'predict_result.csv')
@@ -708,12 +674,53 @@ def handle_visualization_generation(paths):
             
             # 调用生成函数
             generate_and_save_interactive_assets(pred_df, coord_df, paths['output_path'])
-            print("[SUCCESS] 可视化资源生成完成！")
+            print("[成功] 可视化资源生成完成！")
         except Exception as e:
-            print(f"[ERROR] 可视化生成失败: {e}")
+            print(f"[错误] 可视化生成失败: {e}")
             import traceback
             traceback.print_exc()
     else:
-        print(f"[WARN] 找不到结果文件或坐标文件，跳过可视化生成。")
+        print(f"[警告] 找不到结果文件或坐标文件，跳过可视化生成。")
         print(f"  预测结果: {res_path} ({'存在' if os.path.exists(res_path) else '缺失'})")
         print(f"  坐标文件: {coor_path} ({'存在' if os.path.exists(coor_path) else '缺失'})")
+
+def get_or_generate_pie_background(predict_df: pd.DataFrame, coords: pd.DataFrame, 
+                                 result_dir: str, 
+                                 progress_callback: Optional[Callable[[float, str], None]] = None) -> Tuple[Any, Tuple[float, float]]:
+    """
+    可视化资产核心调度器。
+    
+    工作流：
+    1. 扫描目标目录是否存在有效的预计算资产 (.png & .json)。
+    2. 若命中，执行毫秒级磁盘读取。
+    3. 若未命中，则唤起并行渲染流水线生成新资产，并视环境执行自动保存行为。
+    """
+    import os
+    import json
+    from PIL import Image
+    
+    # 路径定义
+    precomputed_img_path = os.path.join(result_dir, "interactive_pie_background.png")
+    precomputed_meta_path = os.path.join(result_dir, "interactive_pie_bounds.json")
+    
+    # 1. 尝试从磁盘读取 (仅对本地数据集有效)
+    if result_dir != "__UPLOADED__" and os.path.exists(precomputed_img_path) and os.path.exists(precomputed_meta_path):
+        try:
+            bg_img = Image.open(precomputed_img_path)
+            with open(precomputed_meta_path, 'r') as f:
+                metadata = json.load(f)
+                return bg_img, (metadata['xlim'], metadata['ylim'])
+        except Exception as e:
+            print(f"读取缓存背景失败，将重新生成: {e}")
+            
+    # 2. 现场生成
+    bg_img, (xlim, ylim) = generate_clean_pie_chart(
+        predict_df, coords, None, 
+        progress_callback=progress_callback
+    )
+    
+    # 3. 保存到磁盘 (仅本地数据集)
+    if result_dir != "__UPLOADED__":
+        save_pie_chart_background(bg_img, xlim, ylim, result_dir)
+        
+    return bg_img, (xlim, ylim)

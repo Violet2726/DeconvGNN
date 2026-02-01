@@ -2,10 +2,13 @@
 import streamlit as st
 
 def get_css():
-    """返回应用自定义 CSS 样式字符串 - 2024 Premium Dark Theme。"""
+    """
+    汇集应用自定义样式表 - 采用 2024 Premium Dark 视觉语言。
+    整合 Glassmorphism (毛玻璃) 效果、高级色彩渐变及 WebGL 渲染优化样式。
+    """
     return """
     <style>
-        /* ========== 0. 现代字体导入 ========== */
+        /* --- 核心排版：Google 现代字体体系 --- */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         
         html, body, [class*="css"] {
@@ -123,7 +126,7 @@ def get_css():
             margin-bottom: 1.5rem;
         }
         
-        /* ========== 4. 指标卡片 (Metric Cards) ========== */
+        /* ========== 4. 数据指标卡片 (Metric Cards) ========== */
         div[data-testid="stMetric"] {
             background: linear-gradient(135deg, rgba(40, 40, 60, 0.6), rgba(30, 30, 50, 0.4)) !important;
             border-radius: 16px !important;
@@ -139,7 +142,7 @@ def get_css():
             box-shadow: 0 12px 40px rgba(102, 126, 234, 0.25) !important;
         }
         
-        /* 指标数值渐变色 */
+        /* 动态数值：色彩渐变增强 */
         div[data-testid="stMetricValue"] > div {
             background: linear-gradient(90deg, #00d4ff, #7b2ff7) !important;
             -webkit-background-clip: text !important;
@@ -246,7 +249,7 @@ def get_css():
             box-shadow: 0 0 12px rgba(102, 126, 234, 0.15) !important;
         }
         
-        /* ========== 8. 图表容器 ========== */
+        /* ========== 8. Plotly 渲染器容器优化 ========== */
         [data-testid="stPlotlyChart"] {
             background: rgba(20, 20, 30, 0.4) !important;
             border-radius: 16px !important;
@@ -301,7 +304,7 @@ def get_css():
             border_radius: 12px !important;
         }
 
-        /* ========== 14. 炫技首页专用样式 (Landing Page) ========== */
+        /* ========== 14. 沉浸式着陆页 (Landing Page) ========== */
         .landing-wrapper {
             max-width: 1200px;
             margin: 0 auto;
@@ -456,11 +459,15 @@ def get_css():
 
 
 def inject_custom_css():
-    """向 Streamlit 应用注入自定义 CSS。"""
+    """
+    将封装的 CSS 样式表注入当前 Streamlit 会话上下文。
+    """
     st.markdown(get_css(), unsafe_allow_html=True)
 
 def get_landing_page_html(banner_src):
-    """生成着陆页 HTML 字符串。"""
+    """
+    构造系统初始化引导页面的 HTML 结构。
+    """
     return f"""
 <div class="landing-wrapper">
     <div class="banner-container">
