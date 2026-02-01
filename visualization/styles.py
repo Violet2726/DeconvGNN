@@ -298,13 +298,200 @@ def get_css():
         }
         
         div[data-testid="stNotification"] {
-            border-radius: 12px !important;
+            border_radius: 12px !important;
+        }
+
+        /* ========== 14. 炫技首页专用样式 (Landing Page) ========== */
+        .landing-wrapper {
+            max-width: 1200px;
+            margin: 0 auto;
+            color: #fff;
+            padding-bottom: 5rem;
         }
         
+        .banner-container {
+            width: 100%;
+            height: 380px;
+            border-radius: 24px;
+            overflow: hidden;
+            margin-bottom: -60px; /* 让标题部分重叠在图片上，增加层次感 */
+            position: relative;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+        }
+        
+        .banner-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: brightness(0.8) contrast(1.1);
+        }
+        
+        .banner-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 50%;
+            background: linear-gradient(to top, #0e1117, transparent);
+        }
+
+        .hero-section {
+            position: relative;
+            z-index: 10;
+            text-align: center;
+            padding: 0 2rem;
+        }
+
+        .hero-title-main {
+            font-size: 4.5rem !important;
+            font-weight: 800 !important;
+            line-height: 1.1 !important;
+            margin-bottom: 1.5rem !important;
+            background: linear-gradient(135deg, #00f260 0%, #0575E6 50%, #8E2DE2 100%);
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            filter: drop-shadow(0 0 15px rgba(5, 117, 230, 0.3));
+        }
+
+        .hero-tagline {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.7);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .features-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-top: 4rem;
+        }
+
+        .bio-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 2.5rem 2rem;
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .bio-card:hover {
+            background: rgba(102, 126, 234, 0.06);
+            border-color: rgba(102, 126, 234, 0.3);
+            transform: translateY(-12px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        }
+
+        .bio-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            opacity: 0;
+            transition: opacity 0.4s;
+        }
+
+        .bio-card:hover::before {
+            opacity: 1;
+        }
+
+        .card-icon-large {
+            font-size: 3rem;
+            margin-bottom: 1.5rem;
+            display: block;
+        }
+
+        .card-title-main {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: #fff;
+        }
+
+        .card-description {
+            font-size: 0.95rem;
+            color: rgba(255, 255, 255, 0.5);
+            line-height: 1.6;
+        }
+        
+        .step-guide {
+            margin-top: 5rem;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 20px;
+            padding: 3rem;
+            border: 1px dashed rgba(255, 255, 255, 0.1);
+            text-align: center;
+        }
+
+        .step-title {
+            color: #00f260;
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+        }
+        
+        /* 侧边栏引导箭头特效 */
+        .sidebar-hint {
+            position: fixed;
+            top: 50%;
+            left: 20px;
+            transform: translateY(-50%);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            z-index: 1000;
+            animation: bounce-right 2s infinite;
+        }
+        
+        @keyframes bounce-right {
+            0%, 100% { transform: translate(0, -50%); }
+            50% { transform: translate(10px, -50%); }
+        }
     </style>
     """
+
 
 def inject_custom_css():
     """向 Streamlit 应用注入自定义 CSS。"""
     st.markdown(get_css(), unsafe_allow_html=True)
 
+def get_landing_page_html(banner_src):
+    """生成着陆页 HTML 字符串。"""
+    return f"""
+<div class="landing-wrapper">
+    <div class="banner-container">
+        <img src="{banner_src}" class="banner-image">
+        <div class="banner-overlay"></div>
+    </div>
+    <div class="hero-section">
+        <div class="hero-tagline">Spatial Transcriptomics Analysis</div>
+        <h1 class="hero-title-main">DeconvGNN Vis</h1>
+        <p class="hero-subtitle">基于深度图神经网络的高性能空间转录组反卷积分析平台</p>
+    </div>
+    <div class="features-container">
+        <div class="bio-card">
+            <i class="fa-solid fa-bolt card-icon-large" style="color: #00f260;"></i>
+            <div class="card-title-main">WebGL 2.0 加速</div>
+            <p class="card-description">底层采用 GPU 加速渲染引擎，支持数万级空间位点实时交互，缩放平移顺滑无阻。</p>
+        </div>
+        <div class="bio-card">
+            <i class="fa-solid fa-microscope card-icon-large" style="color: #0575E6;"></i>
+            <div class="card-title-main">超分辨率反卷积</div>
+            <p class="card-description">集成先进的 GNN 架构，提供亚细胞级的组分还原，精准锁定每一个空间位点的细胞构成。</p>
+        </div>
+        <div class="bio-card">
+            <i class="fa-solid fa-database card-icon-large" style="color: #8E2DE2;"></i>
+            <div class="card-title-main">智能显存缓存</div>
+            <p class="card-description">独创的 Session-State 缓存机制，多数据集切换实现毫秒级响应，拒绝冗余计算等待。</p>
+        </div>
+    </div>
+    <div class="step-guide">
+        <div class="step-title">快速启动分析</div>
+        <p style="color:rgba(255,255,255,0.6); margin:0;">点击左上角展开侧边栏，从“选择数据集”中加载现有项目，或通过“✨ 导入”上传您的研究数据。</p>
+    </div>
+</div>
+"""

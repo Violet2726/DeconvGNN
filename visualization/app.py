@@ -9,6 +9,7 @@ import numpy as np
 import os
 from pathlib import Path
 import streamlit.components.v1 as components
+import base64
 
 # --- 兼容导入 (适配本地开发与 Streamlit Cloud 部署) ---
 try:
@@ -27,27 +28,15 @@ st.set_page_config(
     page_title="DeconvGNN-Vis",
     page_icon="🧬",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# 强制通过 JS 修改标题，去除 "· Streamlit" 后缀
-components.html("""
-    <script>
-        document.title = "DeconvGNN-Vis";
-        // 监听标题变化并强制改回（防止 Streamlit 自动覆盖）
-        new MutationObserver(function(mutations) {
-            if (document.title !== "DeconvGNN-Vis") {
-                document.title = "DeconvGNN-Vis";
-            }
-        }).observe(
-            document.querySelector('title'),
-            { subtree: true, characterData: true, childList: true }
-        );
-    </script>
-""", height=0, width=0)
+
 
 # 注入自定义样式（强制按钮不换行、隐藏默认菜单等）
 styles.inject_custom_css()
+
+
 
 def main():
     """
@@ -57,7 +46,7 @@ def main():
     # === 侧边栏区域：数据选择与管理 ===
     with st.sidebar:
         # 顶部标题
-        st.markdown('<p class="main-header">🧬 DeconvGNN-Vis<br>空间转录组反卷积<br>可视化系统</p>', unsafe_allow_html=True)
+        st.markdown('<p class="main-header">DeconvGNN-Vis<br>空间转录组反卷积<br>可视化系统</p>', unsafe_allow_html=True)
         st.divider()
         
         # 调试工具：清除缓存
@@ -240,8 +229,16 @@ def main():
     
     # 1. 全局数据检查
     if result_dir is None:
-        st.title("DeconvGNN-Vis")
-        st.info("👈 请在左侧 **侧边栏** 导入数据以开始使用")
+        # 1. 引导箭头 (仅在未导入数据时显示)
+        st.markdown('<div class="sidebar-hint"><i class="fa-solid fa-angles-left" style="font-size:3rem; color:#00f260; filter: drop-shadow(0 0 10px #00f260);"></i></div>', unsafe_allow_html=True)
+        
+        # 2. 炫技首页内容 (使用无缩进字符串，防止被识别为代码块)
+        # 2. 炫技首页内容 (使用无缩进字符串，防止被识别为代码块)
+        banner_base64 = utils.get_base64_image(str(utils.BANNER_PATH))
+        banner_src = f"data:image/png;base64,{banner_base64}" if banner_base64 else "https://images.unsplash.com/photo-1628595351029-c2bf17511435?q=80&w=2000&auto=format&fit=crop"
+
+        landing_html = styles.get_landing_page_html(banner_src)
+        st.markdown(landing_html, unsafe_allow_html=True)
         return
         
     # 2. 加载数据

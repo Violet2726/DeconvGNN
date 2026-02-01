@@ -11,6 +11,7 @@ from functools import lru_cache
 from typing import Tuple, List, Optional, Any, Dict, Callable
 from matplotlib.axes import Axes
 import plotly.graph_objects as go
+from pathlib import Path
 
 # Streamlit 缓存（延迟导入避免循环依赖）
 try:
@@ -61,6 +62,25 @@ def cached_chart(func):
         return st.cache_data(ttl=1800, max_entries=CHART_CACHE_SIZE, show_spinner=False)(func)
     else:
         return lru_cache(maxsize=CHART_CACHE_SIZE)(func)
+
+# ========== 路径配置 ==========
+BASE_DIR = None # Will be set dynamically if needed, but for now we use relative or file-based
+try:
+    BASE_DIR = Path(__file__).parent
+except NameError:
+    BASE_DIR = Path(".")
+
+ASSETS_DIR = BASE_DIR / "assets"
+LOGO_PATH = ASSETS_DIR / "logo.png"
+BANNER_PATH = ASSETS_DIR / "banner.png"
+
+def get_base64_image(image_path: str) -> str:
+    """读取图片并转换为 Base64 编码字符串。"""
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except Exception:
+        return ""
 
 
 def get_adaptive_dpi(n_points: int) -> int:
