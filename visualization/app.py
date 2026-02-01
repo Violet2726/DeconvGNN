@@ -307,39 +307,58 @@ def main():
                 hover_count_tab1 = st.slider("悬停显示前 N 种细胞", 3, len(cell_types), min(6, len(cell_types)), key="tab1_hover")
 
             if coords_for_plot is not None:
-                # 1. 加载或生成背景图
-                bg_img = None
-                xlim, ylim = None, None
+                # 1. 加载或生成背景图 (优先使用缓存)
+                bg_cache_key = f"{cache_prefix}bg_img"
                 
-                precomputed_img_path = os.path.join(result_dir, "interactive_pie_background.png")
-                precomputed_meta_path = os.path.join(result_dir, "interactive_pie_bounds.json")
-                
-                if os.path.exists(precomputed_img_path) and os.path.exists(precomputed_meta_path):
-                    from PIL import Image
-                    import json
-                    bg_img = Image.open(precomputed_img_path)
-                    with open(precomputed_meta_path, 'r') as f:
-                        metadata = json.load(f)
-                        xlim = metadata['xlim']
-                        ylim = metadata['ylim']
+                # 优先级: session_state 缓存 > 磁盘文件 > 现场生成
+                if bg_cache_key in st.session_state.figure_cache:
+                    # 从 session_state 缓存读取
+                    cached_bg = st.session_state.figure_cache[bg_cache_key]
+                    bg_img = cached_bg['img']
+                    xlim = cached_bg['xlim']
+                    ylim = cached_bg['ylim']
                 else:
-                    # 使用详细进度条替代简单 spinner
-                    progress_bar = st.progress(0, text="⏳ 准备生成饼图背景...")
-                    status_text = st.empty()
+                    bg_img = None
+                    xlim, ylim = None, None
                     
-                    def update_progress(pct, msg):
-                        progress_bar.progress(pct, text=f"⏳ {msg}")
+                    # 尝试从磁盘读取 (仅对本地数据集有效)
+                    precomputed_img_path = os.path.join(result_dir, "interactive_pie_background.png")
+                    precomputed_meta_path = os.path.join(result_dir, "interactive_pie_bounds.json")
                     
-                    # 如果没有预计算的背景，现场生成并缓存
-                    bg_img, (xlim, ylim) = utils.generate_clean_pie_chart(
-                        predict_df, coords_for_plot, None, 
-                        progress_callback=update_progress
-                    )
-                    utils.save_pie_chart_background(bg_img, xlim, ylim, result_dir)
+                    if result_dir != "__UPLOADED__" and os.path.exists(precomputed_img_path) and os.path.exists(precomputed_meta_path):
+                        from PIL import Image
+                        import json
+                        bg_img = Image.open(precomputed_img_path)
+                        with open(precomputed_meta_path, 'r') as f:
+                            metadata = json.load(f)
+                            xlim = metadata['xlim']
+                            ylim = metadata['ylim']
+                    else:
+                        # 现场生成
+                        progress_bar = st.progress(0, text="⏳ 首次加载，正在生成饼图背景...")
+                        status_text = st.empty()
+                        
+                        def update_progress(pct, msg):
+                            progress_bar.progress(pct, text=f"⏳ {msg}")
+                        
+                        bg_img, (xlim, ylim) = utils.generate_clean_pie_chart(
+                            predict_df, coords_for_plot, None, 
+                            progress_callback=update_progress
+                        )
+                        
+                        # 保存到磁盘 (仅本地数据集)
+                        if result_dir != "__UPLOADED__":
+                            utils.save_pie_chart_background(bg_img, xlim, ylim, result_dir)
+                        
+                        progress_bar.empty()
+                        status_text.empty()
                     
-                    # 清除进度条
-                    progress_bar.empty()
-                    status_text.empty()
+                    # 存入 session_state 缓存
+                    st.session_state.figure_cache[bg_cache_key] = {
+                        'img': bg_img,
+                        'xlim': xlim,
+                        'ylim': ylim
+                    }
                 
                 # 2. 生成交互式图表 (使用缓存)
                 tab1_cache_key = f"{cache_prefix}tab1_{hover_count_tab1}"
