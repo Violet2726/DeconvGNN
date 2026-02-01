@@ -82,6 +82,10 @@ def main():
             # 仅当有选中数据时才启用删除
             if selected_dataset_name:
                 if st.button("🗑️ 移除", use_container_width=True, help="删除当前选中的数据集"):
+                    # 如果删除的是上传的数据，同时清理 uploaded_data
+                    if st.session_state.data_sources.get(selected_dataset_name) == "__UPLOADED__":
+                        if 'uploaded_data' in st.session_state:
+                            del st.session_state.uploaded_data
                     del st.session_state.data_sources[selected_dataset_name]
                     # 删除当前选中项后，清除 selector 状态防止报错
                     if "dataset_selector" in st.session_state:
@@ -112,55 +116,100 @@ def main():
             with st.container():
                 st.markdown("#### <i class='fa-solid fa-cloud-arrow-up'></i> 导入新数据", unsafe_allow_html=True)
                 
-                if 'temp_import_path' not in st.session_state:
-                    st.session_state.temp_import_path = ""
-                    
-                col_path, col_browse = st.columns([3, 1])
-                with col_path:
-                     st.text_input("路径", value=st.session_state.temp_import_path, disabled=True, label_visibility="collapsed", placeholder="请选择文件夹...")
-                with col_browse:
-                    if st.button("📂", key="btn_browse_folder", use_container_width=True):
-                        folder = utils.open_folder_dialog()
-                        if folder:
-                            st.session_state.temp_import_path = folder
-                            st.rerun()
+                # 检测运行环境
+                is_cloud = utils.is_cloud_environment()
                 
-                # 确认逻辑
-                if st.session_state.temp_import_path:
-                    raw_path = st.session_state.temp_import_path
+                if is_cloud:
+                    # ===== 云端模式：使用文件上传 =====
+                    st.info("☁️ 云端模式：请直接上传 CSV 文件")
                     
-                    # 智能路径推断：检查根目录和 results 子目录
-                    valid_path = None
-                    if os.path.exists(os.path.join(raw_path, "predict_result.csv")):
-                        valid_path = raw_path
-                    elif os.path.exists(os.path.join(raw_path, "results", "predict_result.csv")):
-                        valid_path = os.path.join(raw_path, "results")
+                    uploaded_files = st.file_uploader(
+                        "上传数据文件",
+                        type=["csv"],
+                        accept_multiple_files=True,
+                        help="请上传 predict_result.csv 和 coordinates.csv",
+                        key="cloud_uploader"
+                    )
+                    
+                    if uploaded_files and len(uploaded_files) >= 1:
+                        # 检查是否包含必需文件
+                        file_names = [f.name.lower() for f in uploaded_files]
+                        has_predict = any("predict" in name for name in file_names)
                         
-                    if valid_path:
-                        # 默认名称使用用户选中的文件夹名，而不是 valid_path (可能是 .../results)
-                        default_name = os.path.basename(raw_path)
-                        new_name = st.text_input("数据集命名", value=default_name)
+                        if has_predict:
+                            new_name = st.text_input("数据集命名", value="上传的数据集")
+                            
+                            def on_upload_confirm():
+                                if new_name:
+                                    # 存储上传文件到 session state
+                                    st.session_state.uploaded_data = {
+                                        'name': new_name,
+                                        'files': uploaded_files
+                                    }
+                                    st.session_state.data_sources[new_name] = "__UPLOADED__"
+                                    st.session_state.dataset_selector = new_name
+                                    st.session_state.show_import = False
+                                else:
+                                    st.error("请输入名称")
+                            
+                            st.button("✅ 确认添加", type="primary", use_container_width=True, on_click=on_upload_confirm)
+                        else:
+                            st.warning("⚠️ 请确保上传的文件包含 `predict_result.csv`")
+                    
+                    with st.expander("📋 文件要求", expanded=False):
+                        st.markdown("""
+                        **必需文件：**
+                        - `predict_result.csv` - 反卷积预测结果
+                        - `coordinates.csv` - 空间坐标数据
+                        """)
+                else:
+                    # ===== 本地模式：使用文件夹选择 =====
+                    if 'temp_import_path' not in st.session_state:
+                        st.session_state.temp_import_path = ""
                         
-                        # 定义回调函数，在按钮点击时直接修改 state
-                        def on_add_confirm():
-                            if new_name:
-                                st.session_state.data_sources[new_name] = valid_path
-                                # 自动选中新添加的数据集
-                                st.session_state.dataset_selector = new_name
-                                st.session_state.show_import = False
-                                st.session_state.temp_import_path = ""
-                            else:
-                                st.error("请输入名称")
+                    col_path, col_browse = st.columns([3, 1])
+                    with col_path:
+                         st.text_input("路径", value=st.session_state.temp_import_path, disabled=True, label_visibility="collapsed", placeholder="请选择文件夹...")
+                    with col_browse:
+                        if st.button("📂", key="btn_browse_folder", use_container_width=True):
+                            folder = utils.open_folder_dialog()
+                            if folder:
+                                st.session_state.temp_import_path = folder
+                                st.rerun()
+                    
+                    # 确认逻辑
+                    if st.session_state.temp_import_path:
+                        raw_path = st.session_state.temp_import_path
+                        
+                        # 智能路径推断：检查根目录和 results 子目录
+                        valid_path = None
+                        if os.path.exists(os.path.join(raw_path, "predict_result.csv")):
+                            valid_path = raw_path
+                        elif os.path.exists(os.path.join(raw_path, "results", "predict_result.csv")):
+                            valid_path = os.path.join(raw_path, "results")
+                            
+                        if valid_path:
+                            default_name = os.path.basename(raw_path)
+                            new_name = st.text_input("数据集命名", value=default_name)
+                            
+                            def on_add_confirm():
+                                if new_name:
+                                    st.session_state.data_sources[new_name] = valid_path
+                                    st.session_state.dataset_selector = new_name
+                                    st.session_state.show_import = False
+                                    st.session_state.temp_import_path = ""
+                                else:
+                                    st.error("请输入名称")
 
-                        st.button("✅ 确认添加", type="primary", use_container_width=True, on_click=on_add_confirm)
-                        
-                        with st.expander("查看数据要求", expanded=False):
-                            st.markdown("""
-                            必需文件：`predict_result.csv` `coordinates.csv`
-                            （支持直接选择数据集根目录，系统会自动查找 `results` 文件夹）
-                            """)
-                    else:
-                        st.error(f"❌ 未找到关键文件 `predict_result.csv`。\n请确保选择的目录（或其 `results` 子目录）包含该文件。")
+                            st.button("✅ 确认添加", type="primary", use_container_width=True, on_click=on_add_confirm)
+                            
+                            with st.expander("查看数据要求", expanded=False):
+                                st.markdown("""
+                                必需文件：`predict_result.csv` `coordinates.csv`
+                                （支持直接选择数据集根目录，系统会自动查找 `results` 文件夹）
+                                """)
+                        else:
+                            st.error(f"❌ 未找到关键文件 `predict_result.csv`。\n请确保选择的目录（或其 `results` 子目录）包含该文件。")
                 
                 st.divider()
         
@@ -172,14 +221,25 @@ def main():
         st.info("👈 请在左侧 **侧边栏** 导入数据以开始使用")
         return
         
-    # 2. 加载数据 (使用 data_loader 模块，带缓存)
-    predict_df, coords = data_loader.load_results(result_dir)
+    # 2. 加载数据
+    if result_dir == "__UPLOADED__":
+        # 云端模式：从上传的文件加载
+        if 'uploaded_data' in st.session_state and st.session_state.uploaded_data:
+            predict_df, coords = data_loader.load_from_uploaded_files(
+                st.session_state.uploaded_data['files']
+            )
+        else:
+            st.error("❌ 上传的数据已丢失，请重新上传")
+            return
+    else:
+        # 本地模式：从文件路径加载
+        predict_df, coords = data_loader.load_results(result_dir)
     
     if predict_df is not None:
         cell_types = data_loader.get_cell_types(predict_df)
     else:
         st.error("❌ 未找到结果文件")
-        st.info(f"请先运行 Tutorial.py 生成结果")
+        st.info(f"请先运行 Tutorial.py 生成结果，或重新上传数据文件")
         return
     
     # 3. 顶部统计仪表盘

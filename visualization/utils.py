@@ -27,6 +27,20 @@ LOD_THRESHOLD = 5000  # 超过此点数启用 LOD 抽样
 LOD_SAMPLE_RATIO = 0.3  # LOD 模式下的抽样比例
 CHART_CACHE_SIZE = 16  # 图表缓存数量
 
+# ========== 环境检测 ==========
+def is_cloud_environment() -> bool:
+    """
+    检测是否在 Streamlit Cloud 环境中运行。
+    用于在 UI 中显示/隐藏不适用于云端的功能。
+    """
+    import os
+    # Streamlit Cloud 会设置这些环境变量
+    return (
+        os.environ.get("STREAMLIT_SHARING_MODE") is not None or
+        os.environ.get("IS_STREAMLIT_CLOUD") is not None or
+        os.path.exists("/mount/src")  # Streamlit Cloud 特有的挂载路径
+    )
+
 def get_data_fingerprint(df: pd.DataFrame) -> str:
     """
     生成 DataFrame 的快速指纹（用于缓存键）。

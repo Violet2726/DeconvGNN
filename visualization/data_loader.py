@@ -73,3 +73,46 @@ def load_results(result_dir: str) -> Tuple[Optional[pd.DataFrame], Optional[pd.D
 def get_cell_types(predict_df: pd.DataFrame) -> List[str]:
     """提取预测结果中的细胞类型列表。"""
     return predict_df.columns.tolist()
+
+
+def load_from_uploaded_files(uploaded_files: list) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]:
+    """
+    从 Streamlit 上传的文件对象中加载数据。
+    适用于 Streamlit Cloud 部署环境。
+    
+    Args:
+        uploaded_files: st.file_uploader 返回的文件列表
+        
+    Returns:
+        (predict_df, coords): 预测结果与坐标数据 DataFrame。若加载失败返回 (None, None)。
+    """
+    predict_df = None
+    coords = None
+    
+    for uploaded_file in uploaded_files:
+        filename = uploaded_file.name.lower()
+        
+        try:
+            if "predict" in filename and filename.endswith(".csv"):
+                predict_df = pd.read_csv(uploaded_file, index_col=0)
+                print(f"[DataLoader] Loaded predict_result from upload: {uploaded_file.name}")
+            elif "coord" in filename and filename.endswith(".csv"):
+                coords = pd.read_csv(uploaded_file, index_col=0)
+                print(f"[DataLoader] Loaded coordinates from upload: {uploaded_file.name}")
+        except Exception as e:
+            print(f"[DataLoader] Error reading {uploaded_file.name}: {e}")
+            continue
+    
+    # 对齐索引
+    if predict_df is not None and coords is not None:
+        common_indices = predict_df.index.intersection(coords.index)
+        match_ratio = len(common_indices) / len(predict_df)
+        
+        if match_ratio > 0.9:
+            coords = coords.loc[predict_df.index]
+            print(f"[DataLoader] Aligned {len(coords)} rows from uploaded files.")
+        else:
+            print(f"[DataLoader] Index mismatch in uploaded files. Overlap: {match_ratio:.2f}")
+            coords = None  # 索引不匹配，丢弃坐标
+    
+    return predict_df, coords
