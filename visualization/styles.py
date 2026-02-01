@@ -97,12 +97,54 @@ def get_css():
             z-index: 0;
         }
 
-        /* --- 2. 侧边栏：高级磨砂玻璃 --- */
-        section[data-testid="stSidebar"] > div:first-child {
-            background: rgba(18, 18, 28, 0.65) !important;
-            backdrop-filter: blur(20px) saturate(180%) !important;
-            border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
-            box-shadow: 10px 0 30px rgba(0, 0, 0, 0.3) !important;
+        /* 禁止拖拽侧边栏 */
+        [data-testid="stSidebarResizeHandle"] {
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
+        
+        /* 锁定侧边栏宽度，双重保险 */
+        /* 锁定侧边栏宽度，仅在展开时生效 */
+        section[data-testid="stSidebar"][aria-expanded="true"] {
+            min-width: 300px !important;
+            max-width: 300px !important;
+            width: 300px !important;
+        }
+        
+        /* 收起时确保宽度归零 */
+        section[data-testid="stSidebar"][aria-expanded="false"] {
+             min-width: 0 !important;
+             max-width: 0 !important;
+             width: 0 !important;
+        }
+
+        /* 暴力覆盖侧边栏所有区域的光标为默认 */
+        section[data-testid="stSidebar"],
+        section[data-testid="stSidebar"] *,
+        section[data-testid="stSidebar"]::before,
+        section[data-testid="stSidebar"]::after {
+            cursor: default !important;
+            resize: none !important;
+        }
+
+        /* 恢复交互组件的手型光标 */
+        section[data-testid="stSidebar"] button,
+        section[data-testid="stSidebar"] a,
+        section[data-testid="stSidebar"] input,
+        section[data-testid="stSidebar"] select,
+        section[data-testid="stSidebar"] [role="button"] {
+            cursor: pointer !important;
+        }
+
+        /* --- 2. 侧边栏：完全透明化 (暴力模式) --- */
+        section[data-testid="stSidebar"],
+        section[data-testid="stSidebar"] > div {
+            background-color: transparent !important;
+            background: transparent !important;
+            backdrop-filter: none !important;
+            border-right: none !important;
+            box-shadow: none !important;
         }
         
         /* 侧边栏标题 - 霓虹流光 */
