@@ -2,6 +2,15 @@
 
 > 一种基于图神经网络（GNN）的空间转录组学数据反卷积方法及可视化分析系统。以单细胞 RNA 测序数据作为参考，解析空间转录组学点位中不同细胞类型的组成比例。
 
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://deconvgnn-vis.streamlit.app/)
+
+## 🌐 在线演示
+
+立即体验云端可视化（无需配置本地环境）：
+**[https://deconvgnn-vis.streamlit.app/](https://deconvgnn-vis.streamlit.app/)**
+
+> 💡 **使用说明**：在线版本支持直接上传您的分析结果（需包含 `predict_result.csv` 和 `coordinates.csv`），即可生成全套交互式图表。
+
 ## 🌟 核心改进
 
 *   **交互式 Web 可视化平台**：基于 Streamlit 构建，支持空间跨尺度缩放、多层级饼图背景展现及实时悬停比例查看。

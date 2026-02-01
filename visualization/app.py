@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import os
 from pathlib import Path
+import streamlit.components.v1 as components
 
 # --- 兼容导入 (适配本地开发与 Streamlit Cloud 部署) ---
 try:
@@ -29,6 +30,22 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# 强制通过 JS 修改标题，去除 "· Streamlit" 后缀
+components.html("""
+    <script>
+        document.title = "DeconvGNN-Vis";
+        // 监听标题变化并强制改回（防止 Streamlit 自动覆盖）
+        new MutationObserver(function(mutations) {
+            if (document.title !== "DeconvGNN-Vis") {
+                document.title = "DeconvGNN-Vis";
+            }
+        }).observe(
+            document.querySelector('title'),
+            { subtree: true, characterData: true, childList: true }
+        );
+    </script>
+""", height=0, width=0)
+
 # 注入自定义样式（强制按钮不换行、隐藏默认菜单等）
 styles.inject_custom_css()
 
@@ -42,8 +59,15 @@ def main():
         # 顶部标题
         st.markdown('<p class="main-header">🧬 DeconvGNN-Vis<br>空间转录组反卷积<br>可视化系统</p>', unsafe_allow_html=True)
         st.divider()
+        
+        # 调试工具：清除缓存
+        if st.button("⚡ 重置系统", use_container_width=True, help="如果遇到数据加载问题，请点击此按钮重置"):
+            st.cache_data.clear()
+            st.rerun()
+            
+        st.divider()
 
-        st.header("📊 数据选择")
+        st.header("数据集")
         
         # 初始化会话状态 (Session State)
         if 'data_sources' not in st.session_state:
@@ -101,12 +125,7 @@ def main():
                 st.session_state.show_import = not st.session_state.show_import
                 st.rerun()
 
-        st.divider()
-        
-        # 调试工具：清除缓存
-        if st.button("⚡ 重置系统", use_container_width=True, help="如果遇到数据加载问题，请点击此按钮重置"):
-            st.cache_data.clear()
-            st.rerun()
+
 
         st.divider()
 
@@ -121,7 +140,6 @@ def main():
                 
                 if is_cloud:
                     # ===== 云端模式：使用文件上传 =====
-                    st.info("☁️ 云端模式：请直接上传 CSV 文件")
                     
                     uploaded_files = st.file_uploader(
                         "上传数据文件",
@@ -203,10 +221,11 @@ def main():
 
                             st.button("✅ 确认添加", type="primary", use_container_width=True, on_click=on_add_confirm)
                             
-                            with st.expander("查看数据要求", expanded=False):
+                            with st.expander("📋 文件要求", expanded=False):
                                 st.markdown("""
-                                必需文件：`predict_result.csv` `coordinates.csv`
-                                （支持直接选择数据集根目录，系统会自动查找 `results` 文件夹）
+                                **必需文件：**
+                                - `predict_result.csv` - 反卷积预测结果
+                                - `coordinates.csv` - 空间坐标数据
                                 """)
                         else:
                             st.error(f"❌ 未找到关键文件 `predict_result.csv`。\n请确保选择的目录（或其 `results` 子目录）包含该文件。")
