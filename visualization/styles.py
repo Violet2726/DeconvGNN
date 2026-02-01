@@ -213,9 +213,38 @@ def get_css():
         }
 
         /* Secondary - 幽灵边框 */
+        /* ================ 侧边栏按钮专属样式 (优先级最高) ================ */
+        section[data-testid="stSidebar"] .stButton button:not([kind="primary"]) {
+            background: rgba(255, 255, 255, 0.03) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            color: rgba(255, 255, 255, 0.85) !important;
+            border-radius: 8px !important;
+            backdrop-filter: blur(4px);
+            transition: all 0.3s ease !important;
+            position: relative;
+            z-index: 10002 !important;
+            pointer-events: auto !important;
+        }
+
+        /* 侧边栏按钮悬停态 - 强制生效 */
+        section[data-testid="stSidebar"] .stButton button:not([kind="primary"]):hover,
+        section[data-testid="stSidebar"] .stButton button:not([kind="primary"]):active {
+            border-color: #667eea !important;
+            background: rgba(102, 126, 234, 0.1) !important;
+            color: #fff !important;
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.3) !important;
+            text-shadow: 0 0 8px rgba(102, 126, 234, 0.6) !important;
+            transform: translateY(-1px) !important;
+        }
+        
+        /* 侧边栏按钮内的文字变色 */
+        section[data-testid="stSidebar"] .stButton button:not([kind="primary"]):hover p {
+            color: #fff !important;
+        }
+
+        /* ================ 全局次要按钮 (Secondary Global) ================ */
         .stButton > button[kind="secondary"],
-        .stButton > button[data-testid="baseButton-secondary"],
-        section[data-testid="stSidebar"] .stButton > button:not([kind="primary"]) {
+        .stButton > button[data-testid="baseButton-secondary"] {
             background: rgba(255, 255, 255, 0.03) !important;
             border: 1px solid rgba(255, 255, 255, 0.1) !important;
             color: rgba(255, 255, 255, 0.85) !important;
@@ -225,13 +254,13 @@ def get_css():
         }
         
         .stButton > button[kind="secondary"]:hover,
-        .stButton > button[data-testid="baseButton-secondary"]:hover,
-        section[data-testid="stSidebar"] .stButton > button:not([kind="primary"]):hover {
+        .stButton > button[data-testid="baseButton-secondary"]:hover {
             border-color: #667eea !important;
             background: rgba(102, 126, 234, 0.1) !important;
             color: #fff !important;
             box-shadow: 0 0 20px rgba(102, 126, 234, 0.3) !important;
             text-shadow: 0 0 8px rgba(102, 126, 234, 0.6) !important;
+            transform: translateY(-1px) !important;
         }
 
         /* 4.2 数据指标卡 (Metrics) */
