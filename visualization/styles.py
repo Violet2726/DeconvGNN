@@ -169,7 +169,7 @@ def get_css():
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
             background: url("__STARDUST_IMAGE__");
-            opacity: 0.4;
+            opacity: 0;
             pointer-events: none;
             z-index: 0;
         }
@@ -263,34 +263,52 @@ def get_css():
             transform: translateY(-1px) !important;
         }
 
-        /* 4.2 数据指标卡 (Metrics) */
+        /* 4.2 数据指标卡 (Metrics)*/
         div[data-testid="stMetric"] {
-            background: rgba(30, 30, 40, 0.4) !important;
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%) !important;
             border: 1px solid rgba(255, 255, 255, 0.05) !important;
+            border-left: 3px solid var(--primary-color) !important; /* 左侧强调色 */
             border-radius: 12px !important;
-            padding: 15px !important;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
-            transition: transform 0.2s ease !important;
+            padding: 1.5rem !important;
+            backdrop-filter: blur(10px) !important;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        div[data-testid="stMetric"]::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at 80% 20%, rgba(102, 126, 234, 0.1), transparent 40%);
+            pointer-events: none;
         }
         
         div[data-testid="stMetric"]:hover {
-            transform: scale(1.02) !important;
-            border-color: rgba(102, 126, 234, 0.4) !important;
-            background: rgba(40, 40, 60, 0.6) !important;
+            transform: translateY(-5px) scale(1.01) !important;
+            border-color: rgba(102, 126, 234, 0.5) !important;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.15) !important;
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%) !important;
         }
         
         div[data-testid="stMetricLabel"] > div {
             font-family: 'JetBrains Mono', monospace !important;
-            color: rgba(255, 255, 255, 0.5) !important;
-            font-size: 0.8rem !important;
+            color: rgba(255, 255, 255, 0.7) !important; /* 提高标签清晰度 */
+            font-size: 0.85rem !important;
+            font-weight: 500 !important;
             text-transform: uppercase;
             letter-spacing: 1px;
+            margin-bottom: 0.5rem !important;
         }
         
         div[data-testid="stMetricValue"] > div {
-            color: #fff !important;
+            font-size: 2.2rem !important; /* 加大数值 */
             font-weight: 700 !important;
-            text-shadow: 0 0 10px rgba(0, 242, 96, 0.3);
+            background: linear-gradient(90deg, #fff 0%, #a5b4fc 100%); /* 数值渐变 */
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 2px 10px rgba(102, 126, 234, 0.5));
         }
 
         /* 4.3 输入控件 (Inputs & Selects) */
@@ -311,25 +329,44 @@ def get_css():
 
         /* 4.4 Tab 标签页 */
         .stTabs [data-baseweb="tab-list"] {
-            gap: 8px;
-            background: rgba(30, 30, 50, 0.3);
-            border-radius: 12px;
-            padding: 4px;
+            gap: 12px;
+            background: transparent !important; /* 移除容器背景 */
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
         
         .stTabs [data-baseweb="tab-list"] button {
-            background: transparent !important;
-            border: none !important;
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1) !important;
             color: rgba(255, 255, 255, 0.6) !important;
-            border-radius: 8px !important;
-            padding: 8px 16px !important;
-            transition: all 0.3s ease !important;
+            border-radius: 8px !important; /* 矩形圆角 */
+            padding: 8px 24px !important;
+            font-size: 0.9rem !important;
+            font-weight: 600 !important;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stTabs [data-baseweb="tab-list"] button:hover {
+            background: rgba(102, 126, 234, 0.2) !important;
+            border-color: rgba(102, 126, 234, 0.5) !important;
+            color: #fff !important;
+            transform: translateY(-2px);
+            box-shadow: 0 0 15px rgba(102, 126, 234, 0.4) !important; /* 霓虹光晕 */
+            text-shadow: 0 0 8px rgba(102, 126, 234, 0.6) !important; /* 文字发光 */
         }
         
         .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            border-color: transparent !important;
             color: #fff !important;
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.3), rgba(118, 75, 162, 0.3)) !important;
-            box-shadow: 0 0 15px rgba(102, 126, 234, 0.2) !important;
+            box-shadow: 0 4px 15px rgba(118, 75, 162, 0.5) !important;
+        }
+        
+        /* 隐藏默认的下划线 */
+        .stTabs [data-baseweb="tab-highlight"] {
+            display: none !important;
         }
 
         /* 4.5 Expander 折叠面板 */
