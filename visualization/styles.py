@@ -214,16 +214,18 @@ def get_css():
         
         /* 次要按钮 */
         .stButton > button[kind="secondary"],
-        .stButton > button[data-testid="baseButton-secondary"] {
+        .stButton > button[data-testid="baseButton-secondary"],
+        section[data-testid="stSidebar"] .stButton > button:not([kind="primary"]) {
             background: transparent !important;
             border: 1px solid rgba(102, 126, 234, 0.5) !important;
-            color: #667eea !important;
+            color: rgba(255, 255, 255, 0.8) !important;
             transition: all 0.3s ease !important;
             border-radius: 10px !important;
         }
         
         .stButton > button[kind="secondary"]:hover,
-        .stButton > button[data-testid="baseButton-secondary"]:hover {
+        .stButton > button[data-testid="baseButton-secondary"]:hover,
+        section[data-testid="stSidebar"] .stButton > button:not([kind="primary"]):hover {
             background: rgba(102, 126, 234, 0.1) !important;
             border-color: #667eea !important;
             box-shadow: 0 0 15px rgba(102, 126, 234, 0.2) !important;

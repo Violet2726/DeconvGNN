@@ -44,12 +44,12 @@ def main():
         st.divider()
         
         # 系统重置工具
-        if st.button("⚡ 重置系统", use_container_width=True, help="清除所有缓存并重新加载应用"):
+        if st.button("⚡ 重置系统", type="secondary", use_container_width=True, help="清除所有缓存并重新加载应用"):
             st.cache_data.clear()
             st.rerun()
             
         st.divider()
-        st.header("数据集管理")
+        st.header("数据集管理", help="""目标文件夹必须包含：`predict_result.csv` `coordinates.csv`""")
         
         # 初始化会话数据源
         if 'data_sources' not in st.session_state:
@@ -84,7 +84,7 @@ def main():
         
         with col_del:
             if selected_dataset_name:
-                if st.button("🗑️ 移除", use_container_width=True, help="从当前会话中移除该数据集"):
+                if st.button("🗑️ 移除", type="secondary", use_container_width=True):
                     if st.session_state.data_sources.get(selected_dataset_name) == "__UPLOADED__":
                         if 'uploaded_data' in st.session_state:
                             del st.session_state.uploaded_data
@@ -94,110 +94,111 @@ def main():
                         del st.session_state.dataset_selector
                     st.rerun()
             else:
-                 st.button("🗑️ 移除", disabled=True, use_container_width=True)
+                 st.button("🗑️ 移除", type="secondary", disabled=True, use_container_width=True)
  
+        if 'rename_dialog_open' not in st.session_state:
+            st.session_state.rename_dialog_open = False
+            
+        @st.dialog("重命名数据集")
+        def rename_dialog(default_name, valid_path):
+            new_name = st.text_input("显示名称", value=default_name)
+            if st.button("确认添加", type="primary", use_container_width=True):
+                if new_name:
+                    st.session_state.data_sources[new_name] = valid_path
+                    st.session_state.dataset_selector = new_name
+                    st.session_state.temp_import_path = "" # Clear path
+                    st.session_state.rename_dialog_open = False # Close flag
+                    
+                    st.rerun()
+                else:
+                    st.error("名称不能为空")
+        
         with col_add:
-            # 切换导入面板显示状态
-            btn_label = "✖️ 取消" if st.session_state.show_import and options else "✨ 导入"
-            if st.button(btn_label, use_container_width=True):
-                st.session_state.show_import = not st.session_state.show_import
-                st.rerun()
+            is_cloud = utils.is_cloud_environment()
+            
+            if is_cloud:
+                # Cloud: Toggle Button
+                btn_label = "✖️ 取消" if st.session_state.show_import else "📂 导入"
+                if st.button(btn_label, type="secondary", use_container_width=True):
+                    st.session_state.show_import = not st.session_state.show_import
+                    st.rerun()
+            else:
+                # Local: Direct Browse with Dialog
+                if st.button("📂 导入", type="secondary", use_container_width=True):
+                    folder = utils.open_folder_dialog()
+                    if folder:
+                         # Validate Path immediately
+                        valid_path = None
+                        if os.path.exists(os.path.join(folder, "predict_result.csv")):
+                            valid_path = folder
+                        elif os.path.exists(os.path.join(folder, "results", "predict_result.csv")):
+                            valid_path = os.path.join(folder, "results")
+                        
+                        if valid_path:
+                            st.session_state.temp_import_path = valid_path
+                            st.session_state.rename_dialog_open = True
+                            st.rerun()
+                        else:
+                            st.toast("❌ 目录无效：未找到 predict_result.csv", icon="🚫")
 
-
+        # Trigger Dialog if flag is set (Local Only)
+        if st.session_state.get('rename_dialog_open') and st.session_state.get('temp_import_path'):
+            # Smart Naming: If the selected folder is 'results', use the parent folder name
+            raw_basename = os.path.basename(st.session_state.temp_import_path)
+            if raw_basename.lower() == "results":
+                parent_name = os.path.basename(os.path.dirname(st.session_state.temp_import_path))
+                base_name = parent_name
+            else:
+                base_name = raw_basename
+            
+            rename_dialog(base_name, st.session_state.temp_import_path)
 
         st.divider()
 
-        # 数据导入交互面板
-        if st.session_state.show_import:
-            with st.container():
+        # Cloud Import Logic (Only visible if Cloud mode AND show_import is True)
+        if is_cloud and st.session_state.show_import:
+             with st.container():
                 st.markdown("#### <i class='fa-solid fa-cloud-arrow-up'></i> 导入新项目", unsafe_allow_html=True)
-                is_cloud = utils.is_cloud_environment()
                 
-                if is_cloud:
-                    # 云端部署模式：基于文件上传的数据加载
-                    
-                    uploaded_files = st.file_uploader(
-                        "上传数据文件",
-                        type=["csv"],
-                        accept_multiple_files=True,
-                        help="请上传 predict_result.csv 和 coordinates.csv",
-                        key="cloud_uploader"
-                    )
-                    
-                    if uploaded_files:
-                        file_names = [f.name.lower() for f in uploaded_files]
-                        if any("predict" in name for name in file_names):
-                            new_name = st.text_input("数据集显示名称", value="新上传数据集")
-                            
-                            def on_upload_confirm():
-                                if new_name:
-                                    # 解析数据并持久化到 Session Cache
-                                    pdf, cdf = data_loader.load_from_uploaded_files(uploaded_files)
-                                    if pdf is not None:
-                                        st.session_state.uploaded_data_cache = {
-                                            'predict_df': pdf,
-                                            'coords': cdf
-                                        }
-                                        st.session_state.data_sources[new_name] = "__UPLOADED__"
-                                        st.session_state.dataset_selector = new_name
-                                        st.session_state.show_import = False
-                                    else:
-                                        st.toast("❌ 数据解析失败，请检查 CSV 格式", icon="❌")
-                                else:
-                                    st.error("请输入名称")
-                            
-                            st.button("✅ 确认上传", type="primary", use_container_width=True, on_click=on_upload_confirm)
-                        else:
-                            st.warning("⚠️ 必需文件缺失：请务必上传 `predict_result.csv`")
-                    
-                    with st.expander("📋 文件规范", expanded=False):
-                        st.markdown("""
-                        **必须上传以下文件：**
-                        - `predict_result.csv`: 模型预测结果（细胞占比）
-                        - `coordinates.csv`: 空间位点坐标
-                        """)
-                else:
-                    # 本地开发模式：基于文件路径的智能导入
-                    if 'temp_import_path' not in st.session_state:
-                         st.session_state.temp_import_path = ""
+                uploaded_files = st.file_uploader(
+                    "上传数据文件",
+                    type=["csv"],
+                    accept_multiple_files=True,
+                    help="请上传 predict_result.csv 和 coordinates.csv",
+                    key="cloud_uploader"
+                )
+                
+                if uploaded_files:
+                    file_names = [f.name.lower() for f in uploaded_files]
+                    if any("predict" in name for name in file_names):
+                        # Auto-generate default name: dataset_1, dataset_2, ...
+                        counter = 1
+                        while f"dataset_{counter}" in st.session_state.data_sources:
+                            counter += 1
+                        default_cloud_name = f"dataset_{counter}"
                         
-                    col_path, col_browse = st.columns([3, 1])
-                    with col_path:
-                         st.text_input("本地路径", value=st.session_state.temp_import_path, disabled=True, label_visibility="collapsed")
-                    with col_browse:
-                        if st.button("📂", use_container_width=True):
-                            folder = utils.open_folder_dialog()
-                            if folder:
-                                st.session_state.temp_import_path = folder
-                                st.rerun()
-                    
-                    # 确认逻辑
-                    if st.session_state.temp_import_path:
-                        raw_path = st.session_state.temp_import_path
+                        new_name = st.text_input("数据集显示名称", value=default_cloud_name)
                         
-                        # 检测路径有效性（支持根目录或 results 子目录）
-                        valid_path = None
-                        if os.path.exists(os.path.join(raw_path, "predict_result.csv")):
-                            valid_path = raw_path
-                        elif os.path.exists(os.path.join(raw_path, "results", "predict_result.csv")):
-                            valid_path = os.path.join(raw_path, "results")
-                            
-                        if valid_path:
-                            default_name = os.path.basename(raw_path)
-                            new_name = st.text_input("数据集显示名称", value=default_name)
-                            
-                            def on_add_confirm():
-                                if new_name:
-                                    st.session_state.data_sources[new_name] = valid_path
+                        def on_upload_confirm():
+                            if new_name:
+                                pdf, cdf = data_loader.load_from_uploaded_files(uploaded_files)
+                                if pdf is not None:
+                                    st.session_state.uploaded_data_cache = {
+                                        'predict_df': pdf,
+                                        'coords': cdf
+                                    }
+                                    st.session_state.data_sources[new_name] = "__UPLOADED__"
                                     st.session_state.dataset_selector = new_name
                                     st.session_state.show_import = False
-                                    st.session_state.temp_import_path = ""
                                 else:
-                                    st.error("请输入名称")
- 
-                            st.button("✅ 确认导入", type="primary", use_container_width=True, on_click=on_add_confirm)
-                        else:
-                            st.error(f"❌ 目录无效：未能在该路径下找到 `predict_result.csv`。")
+                                    st.toast("❌ 数据解析失败，请检查 CSV 格式", icon="❌")
+                            else:
+                                st.error("请输入名称")
+                        
+                        st.button("✅ 确认上传", type="primary", use_container_width=True, on_click=on_upload_confirm)
+                    else:
+                        st.warning("⚠️ 必需文件缺失：请务必上传 `predict_result.csv`")
+
                 st.divider()
  
     # === 主界面展示区 ===
@@ -213,7 +214,9 @@ def main():
  
         st.markdown(styles.get_landing_page_html(banner_src), unsafe_allow_html=True)
         return
-        
+    
+
+         
     # 有效数据场景：执行数据流加载
     if result_dir == "__UPLOADED__":
         # 云端部署加载逻辑：通过 Session State 恢复
@@ -225,7 +228,8 @@ def main():
             return
     else:
         # 本地开发加载逻辑：通过文件系统读取
-        predict_df, coords = data_loader.load_results(result_dir)
+        with st.spinner("正在加载数据集..."):
+            predict_df, coords = data_loader.load_results(result_dir)
     
     if predict_df is not None:
         cell_types = data_loader.get_cell_types(predict_df)
