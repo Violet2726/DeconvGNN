@@ -74,7 +74,7 @@ def main():
         with col_del:
             # 仅当有选中数据时才启用删除
             if selected_dataset_name:
-                if st.button("🗑️ 删除", use_container_width=True, help="删除当前选中的数据集"):
+                if st.button("🗑️ 移除", use_container_width=True, help="删除当前选中的数据集"):
                     del st.session_state.data_sources[selected_dataset_name]
                     # 删除当前选中项后，清除 selector 状态防止报错
                     if "dataset_selector" in st.session_state:
@@ -85,7 +85,7 @@ def main():
 
         with col_add:
             # 导入/取消导入 切换按钮
-            btn_label = "❌ 取消" if st.session_state.show_import and options else "📂 导入"
+            btn_label = "✖️ 取消" if st.session_state.show_import and options else "✨ 导入"
             if st.button(btn_label, use_container_width=True):
                 st.session_state.show_import = not st.session_state.show_import
                 st.rerun()
@@ -93,7 +93,7 @@ def main():
         st.divider()
         
         # 调试工具：清除缓存
-        if st.button("🧹 清除缓存", use_container_width=True, help="如果遇到数据加载问题，请点击此按钮重置"):
+        if st.button("⚡ 重置系统", use_container_width=True, help="如果遇到数据加载问题，请点击此按钮重置"):
             st.cache_data.clear()
             st.rerun()
 
@@ -103,7 +103,7 @@ def main():
         # 嵌入式显示，点击导入后展开
         if st.session_state.show_import:
             with st.container():
-                st.markdown("#### 📥 导入新数据")
+                st.markdown("#### <i class='fa-solid fa-cloud-arrow-up'></i> 导入新数据", unsafe_allow_html=True)
                 
                 if 'temp_import_path' not in st.session_state:
                     st.session_state.temp_import_path = ""
@@ -112,7 +112,7 @@ def main():
                 with col_path:
                      st.text_input("路径", value=st.session_state.temp_import_path, disabled=True, label_visibility="collapsed", placeholder="请选择文件夹...")
                 with col_browse:
-                    if st.button("浏览", key="btn_browse_folder", use_container_width=True):
+                    if st.button("📂", key="btn_browse_folder", use_container_width=True):
                         folder = utils.open_folder_dialog()
                         if folder:
                             st.session_state.temp_import_path = folder
@@ -145,7 +145,7 @@ def main():
                             else:
                                 st.error("请输入名称")
 
-                        st.button("➕ 确认添加", type="primary", use_container_width=True, on_click=on_add_confirm)
+                        st.button("✅ 确认添加", type="primary", use_container_width=True, on_click=on_add_confirm)
                         
                         with st.expander("查看数据要求", expanded=False):
                             st.markdown("""
@@ -202,23 +202,23 @@ def main():
             st.session_state.chart_cache = {}
             st.session_state.chart_cache_key = cache_key
         
-        # 4. 可视化选项卡
+        # 创建 Tab 标签页 (使用更现代的 Emoji)
         tabs = st.tabs([
-            "🎨 空间组成分布", 
-            "🔍 主要类型分布", 
-            "📊 整体比例统计", 
-            "🔥 单细胞类型热图", 
-            "📈 详细数据表"
+            "🧩 空间组分图谱", 
+            "🔍 优势亚群分布", 
+            "📊 细胞比例概览", 
+            "🌡️ 单细胞热度图", 
+            "📑 原始数据详单"
         ])
         
         # --- Tab 1: 空间组成分布 (Plotly Scatter + 饼图背景) ---
         with tabs[0]:
-            st.subheader("空间组成分布 (多色饼图)")
+            # st.subheader 已移除，使用图表内部标题
             # 数据准备
             coords_for_plot = coords
 
             # 设置栏
-            with st.expander("🛠️ 设置", expanded=False):
+            with st.expander("⚙️ 视图配置", expanded=False):
                 hover_count_tab1 = st.slider("悬停显示前 N 种细胞", 3, len(cell_types), min(6, len(cell_types)), key="tab1_hover")
 
             if coords_for_plot is not None:
@@ -274,9 +274,9 @@ def main():
 
         # --- Tab 2: 主要类型分布 (Dominant Scatter) ---
         with tabs[1]:
-            st.subheader("主要类型分布 (优势细胞)")
+            # st.subheader 已移除
             
-            with st.expander("🛠️ 设置", expanded=False):
+            with st.expander("⚙️ 视图配置", expanded=False):
                 hover_count = st.slider("悬停显示前 N 种细胞", 3, len(cell_types), min(6, len(cell_types)), key="tab2_hover")
                 
             if coords_for_plot is not None:
@@ -312,7 +312,7 @@ def main():
         
         # --- Tab 3: 整体比例统计 (Bar Chart) ---
         with tabs[2]:
-            st.subheader("📊 整体比例统计")
+            # st.subheader 已移除
             fig = utils.generate_proportion_bar(predict_df)
             st.plotly_chart(fig, use_container_width=True)
 
@@ -333,7 +333,7 @@ def main():
         
         # --- Tab 5: 详细数据表 (Table) ---
         with tabs[4]:
-            st.subheader("详细数据表")
+            st.subheader("📑 原始数据详单")
             st.dataframe(predict_df, use_container_width=True, height=400)
 
 if __name__ == "__main__":
