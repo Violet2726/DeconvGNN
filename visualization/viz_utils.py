@@ -15,7 +15,7 @@ from matplotlib.axes import Axes
 import plotly.graph_objects as go
 from pathlib import Path
 
-# --- 运行时环境检测与 Streamlit 兼容层 ---
+# 运行时环境检测与 Streamlit 兼容层
 try:
     import streamlit as st
     HAS_STREAMLIT = True
@@ -23,6 +23,7 @@ except ImportError:
     HAS_STREAMLIT = False
 
 def _get_env_int(key: str, default: int) -> int:
+    """读取环境变量并转换为正整数，失败则回退默认值。"""
     try:
         value = int(os.getenv(key, default))
         return value if value > 0 else default
@@ -30,6 +31,7 @@ def _get_env_int(key: str, default: int) -> int:
         return default
 
 def _get_env_float(key: str, default: float) -> float:
+    """读取环境变量并转换为正浮点数，失败则回退默认值。"""
     try:
         value = float(os.getenv(key, default))
         return value if value > 0 else default
@@ -37,6 +39,7 @@ def _get_env_float(key: str, default: float) -> float:
         return default
 
 def _get_logger() -> logging.Logger:
+    """获取可视化工具模块的日志记录器。"""
     logger = logging.getLogger("visualization.viz_utils")
     if not logger.handlers:
         handler = logging.StreamHandler()
@@ -54,8 +57,7 @@ CHART_CACHE_SIZE = _get_env_int("DECONV_VIS_CHART_CACHE_SIZE", 16)
 
 def is_cloud_environment() -> bool:
     """
-    判断当前应用是否运行在 Streamlit Cloud 云端环境。
-    用于区分本地文件交互与云端文件上传逻辑。
+    判断是否运行在 Streamlit Cloud 环境，用于区分本地与云端流程。
     """
     return (
         os.environ.get("STREAMLIT_SHARING_MODE") is not None or
@@ -65,27 +67,29 @@ def is_cloud_environment() -> bool:
 
 def get_data_fingerprint(df: pd.DataFrame) -> str:
     """
-    生成 DataFrame 的快速指纹（用于缓存键）。
-    使用形状 + 前后几行的哈希值，避免完整数据哈希的开销。
+    生成 DataFrame 的轻量指纹，用于缓存键。
+    采用形状与前后样本行，避免全量哈希成本。
     """
     shape_str = f"{df.shape}"
     # 取前5行和后5行的字符串表示
     sample_str = df.head(5).to_string() + df.tail(5).to_string()
     return hashlib.md5((shape_str + sample_str).encode()).hexdigest()[:12]
 
-# 智能缓存装饰器：在 Streamlit 模式下启用 st.cache_data，否则回退至 lru_cache
+# 缓存装饰器：Streamlit 使用 st.cache_data，否则回退 lru_cache
 def cached_chart(func):
+    """根据运行环境选择 Streamlit 或 LRU 缓存装饰器。"""
     if HAS_STREAMLIT:
         return st.cache_data(ttl=1800, max_entries=CHART_CACHE_SIZE, show_spinner=False)(func)
     else:
         return lru_cache(maxsize=CHART_CACHE_SIZE)(func)
 
-# --- 资源路径体系配置 ---
+# 资源路径配置
 ASSETS_DIR = Path(__file__).parent / "assets"
 LOGO_PATH = ASSETS_DIR / "logo.png"
 BANNER_PATH = ASSETS_DIR / "banner.png"
 
 def get_base64_image(image_path: str) -> str:
+    """读取图片并返回 Base64 编码字符串。"""
     try:
         with open(image_path, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode()
@@ -94,12 +98,13 @@ def get_base64_image(image_path: str) -> str:
 
 @cached_chart
 def get_base64_image_cached(image_path: str) -> str:
+    """缓存图片 Base64 编码结果，减少重复 IO。"""
     return get_base64_image(image_path)
 
 
 def get_adaptive_dpi(n_points: int) -> int:
     """
-    根据数据规模动态调整渲染 DPI，在显示效果与 CPU 占用间取得最优平衡。
+    按数据规模动态调整 DPI，平衡清晰度与计算开销。
     """
     if n_points > 10000: return 150
     elif n_points > 5000: return 300
@@ -109,7 +114,7 @@ def get_adaptive_dpi(n_points: int) -> int:
 def apply_lod_sampling(predict_df: pd.DataFrame, coords: pd.DataFrame, 
                        force_full: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame, bool]:
     """
-    对超大规模观测数据集应用 LOD (细节层次) 采样。
+    对超大规模数据集应用 LOD 采样。
     """
     n_points = len(predict_df)
     
@@ -130,25 +135,26 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
     该图片随后会被嵌入 Plotly 面板作为图层背景。
     """
     def update_progress(pct, msg):
+        """转发进度到外部回调函数。"""
         if progress_callback:
             progress_callback(pct, msg)
     
     update_progress(0.05, "准备颜色映射...")
     
-    # 准备颜色 (使用智能聚类配色)
+    # 准备颜色（聚类配色）
     labels = predict_df.columns.tolist()
     color_map = get_color_map_cached(tuple(labels), predict_df)
     colors = [color_map[label] for label in labels]
     
     update_progress(0.1, "计算画布尺寸...")
     
-    # 计算画布大小
+    # 计算画布尺寸
     x_range = coords['x'].max() - coords['x'].min()
     y_range = coords['y'].max() - coords['y'].min()
     if y_range == 0: y_range = 1
     aspect_ratio = x_range / y_range
     
-    # 设置自适应 DPI（性能优化关键）
+    # 自适应 DPI
     n_points = len(predict_df)
     dpi = get_adaptive_dpi(n_points)
     base_size = 12
@@ -158,20 +164,20 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
     
     update_progress(0.2, "计算最佳点大小...")
     
-    # --- 位点间距智能计算：基于最邻近索引 (KNN) ---
+    # 位点间距估计（KNN）
     from sklearn.neighbors import NearestNeighbors
     coords_array = np.column_stack((coords['x'], coords['y']))
     nbrs = NearestNeighbors(n_neighbors=2).fit(coords_array)
     distances, _ = nbrs.kneighbors(coords_array)
-    avg_spacing = np.median(distances[:, 1]) # 获取位点平均步长
+    avg_spacing = np.median(distances[:, 1]) # 获取平均步长
     
     update_progress(0.25, "正在构建图形集合 (PatchCollection)...")
     
-    # 使用 PatchCollection 优化绘图性能
+    # 使用 PatchCollection 提升性能
     from matplotlib.patches import Wedge
     from matplotlib.collections import PatchCollection
 
-    # 半径系数经验值
+    # 半径系数
     radius = avg_spacing * 0.42
     
     logger.info("使用 PatchCollection 批量渲染 DPI=%s 半径=%.4f", dpi, radius)
@@ -190,16 +196,16 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
     update_progress(0.3, f"构建 {total_points} 个饼图对象...")
 
     for i in range(total_points):
-        # 更新进度（每 10% 更新一次）
+        # 更新进度（每 10% 一次）
         if i % max(1, total_points // 10) == 0:
             progress = 0.3 + 0.5 * (i / total_points)
             update_progress(progress, f"处理点 {i}/{total_points}...")
-        # 1. 获取当前点的分布和坐标
+        # 获取分布与坐标
         dist = predict_values[i]
         xc, yc = x_coords[i], y_coords[i]
         
-        # 2. 计算 Top N
-        # 找出 Top N 的索引
+        # 计算 Top N
+        # Top N 索引
         if np.all(dist == 0): continue
         
         sorted_indices = np.argsort(dist)[::-1]
@@ -214,47 +220,47 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
         
         if not current_vals: continue
         
-        # 3. 归一化并构建扇形
+        # 归一化并构建扇形
         total = sum(current_vals)
-        # 起始角度 (0度对应X轴正方向)
+        # 起始角度（0 度对应 X 轴正向）
         current_angle = 0.0
         
         for val, color in zip(current_vals, current_colors):
-            # 计算扇区跨度 (角度)
+            # 计算扇区跨度
             ratio = val / total
             theta = ratio * 360.0
             
             # 创建扇形 Wedge((x,y), r, start, end)
-            # 注意: Wedge 默认接受度数
+            # Wedge 使用度数
             w = Wedge((xc, yc), radius, current_angle, current_angle + theta, facecolor=color, linewidth=0)
             wedges.append(w)
             
             current_angle += theta
 
-    # 4. 一次性添加到 Axes
+    # 批量添加到 Axes
     if wedges:
         logger.info("渲染扇形图层 count=%s", len(wedges))
-        # match_original=True 确保保留每个 Wedge 的颜色
+        # match_original=True 保留每个 Wedge 的颜色
         p = PatchCollection(wedges, match_original=True)
         ax.add_collection(p)
         
-    # 设置坐标轴范围与 Plotly 严格一致
-    # 增加一点点 padding 防止边缘被切
+    # 坐标范围与 Plotly 对齐
+    # 增加少量边距避免裁切
     padding = x_range * 0.05
     ax.set_xlim(coords['x'].min() - padding, coords['x'].max() + padding)
     ax.set_ylim(coords['y'].min() - padding, coords['y'].max() + padding)
     
-    # 移除所有装饰
+    # 隐藏坐标装饰
     ax.axis('off')
     plt.margins(0)
-    # 确保完全无边距
+    # 去除边距
     plt.subplots_adjust(top=1, bottom=0, right=1, left=0, hspace=0, wspace=0)
     
-    # 设置透明背景
+    # 透明背景
     fig.patch.set_alpha(0)
     ax.patch.set_alpha(0)
     
-    # 保存到 buffer
+    # 保存到内存
     update_progress(0.9, "保存图像...")
     buf = io.BytesIO()
     plt.savefig(buf, format='png', transparent=True, bbox_inches=None, pad_inches=0)
@@ -280,7 +286,7 @@ def get_color_map(labels: List[str], predict_df: Optional[pd.DataFrame] = None) 
     # 默认按字母序，保证确定性
     sorted_labels = sorted(list(set(labels)))
     
-    # --- 核心改进：基于生物学/空间相关性的层次聚类排序 ---
+    # 基于空间相关性的层次聚类排序
     if predict_df is not None:
         try:
             import scipy.cluster.hierarchy as sch
@@ -303,9 +309,8 @@ def get_color_map(labels: List[str], predict_df: Optional[pd.DataFrame] = None) 
                 # 4. 获取最优叶节点排序索引
                 ind = sch.leaves_list(linkage)
                 
-                # 5. 重排标签
+                # 根据聚类叶序重排标签
                 sorted_labels = [correlation_matrix.columns[i] for i in ind]
-                # print(f"  ℹ️ [Auto-Color] 已根据空间相关性重排细胞类型顺序")
         except Exception as exc:
             logger.warning("颜色聚类排序失败，回退到字母序", exc_info=exc)
             
@@ -328,6 +333,7 @@ def get_color_map(labels: List[str], predict_df: Optional[pd.DataFrame] = None) 
 
 @cached_chart
 def get_color_map_cached(labels: Tuple[str, ...], predict_df: Optional[pd.DataFrame] = None) -> Dict[str, str]:
+    """缓存颜色映射以减少重复计算。"""
     return get_color_map(list(labels), predict_df)
 
 

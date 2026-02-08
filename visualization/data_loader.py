@@ -7,10 +7,11 @@ import streamlit as st
 from concurrent.futures import ThreadPoolExecutor
 from typing import Tuple, Optional, List, Dict, Any
 
-# 数据目录配置 (初始为空)
+# 数据目录配置
 DATA_DIRS: Dict[str, str] = {}
 
 def _get_env_int(key: str, default: int) -> int:
+    """读取环境变量并转换为正整数，失败则回退默认值。"""
     try:
         value = int(os.getenv(key, default))
         return value if value > 0 else default
@@ -18,6 +19,7 @@ def _get_env_int(key: str, default: int) -> int:
         return default
 
 def _get_env_float(key: str, default: float) -> float:
+    """读取环境变量并转换为正浮点数，失败则回退默认值。"""
     try:
         value = float(os.getenv(key, default))
         return value if value > 0 else default
@@ -25,6 +27,7 @@ def _get_env_float(key: str, default: float) -> float:
         return default
 
 def _get_logger() -> logging.Logger:
+    """获取数据加载模块的日志记录器。"""
     logger = logging.getLogger("visualization.data_loader")
     if not logger.handlers:
         handler = logging.StreamHandler()
@@ -44,6 +47,7 @@ SUMMARY_CACHE_DEFAULT = _get_env_int("DECONV_VIS_USE_SUMMARY_CACHE", 1) == 1
 SUMMARY_SAMPLE_ROWS = _get_env_int("DECONV_VIS_SUMMARY_ROWS", 200)
 
 def _normalize_coords(coords: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+    """统一坐标列为 x/y，兼容不同命名格式。"""
     if coords is None:
         return None
     if "x" in coords.columns and "y" in coords.columns:
@@ -60,20 +64,25 @@ def validate_dataset(
     predict_df: Optional[pd.DataFrame],
     coords: Optional[pd.DataFrame]
 ) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], List[str], List[str]]:
+    """校验预测结果与坐标数据，并返回校验后的结果与提示信息。"""
     errors: List[str] = []
     warnings: List[str] = []
+    # 预测结果基础校验
     if predict_df is None or predict_df.empty:
         errors.append("预测结果为空或无法读取")
         return None, None, errors, warnings
     if predict_df.index.has_duplicates:
         errors.append("预测结果索引存在重复值")
+    # 检查非数值列
     non_numeric_cols = [
         col for col in predict_df.columns
         if not pd.api.types.is_numeric_dtype(predict_df[col])
     ]
     if non_numeric_cols:
         errors.append("预测结果包含非数值列")
+    # 规范化坐标列
     coords = _normalize_coords(coords)
+    # 坐标可用性校验
     if coords is None:
         warnings.append("坐标文件缺失或无法解析")
         return predict_df, None, errors, warnings
@@ -83,30 +92,37 @@ def validate_dataset(
     if coords[["x", "y"]].isnull().any().any():
         warnings.append("坐标数据存在空值")
         return predict_df, None, errors, warnings
+    # 索引重叠度检查
     common_indices = predict_df.index.intersection(coords.index)
     match_ratio = len(common_indices) / len(predict_df)
     if match_ratio < MATCH_RATIO_THRESHOLD:
         warnings.append(f"坐标与预测结果索引重叠不足 ({match_ratio:.2%})")
         return predict_df, None, errors, warnings
+    # 对齐索引
     coords = coords.loc[predict_df.index]
     return predict_df, coords, errors, warnings
 
 def _read_csv_path(path: str) -> pd.DataFrame:
+    """从磁盘路径读取 CSV。"""
     return pd.read_csv(path, index_col=0, low_memory=False, engine="c", memory_map=True)
 
 def _read_csv_bytes(data: bytes) -> pd.DataFrame:
+    """从字节流读取 CSV。"""
     return pd.read_csv(io.BytesIO(data), index_col=0, low_memory=False, engine="c")
 
 def _cache_paths(result_dir: str) -> Tuple[str, str]:
+    """生成预测结果与坐标的缓存路径。"""
     return (
         os.path.join(result_dir, "predict_result.pkl"),
         os.path.join(result_dir, "coordinates.pkl")
     )
 
 def _summary_cache_path(result_dir: str) -> str:
+    """生成摘要索引的缓存路径。"""
     return os.path.join(result_dir, "predict_summary.pkl")
 
 def _is_cache_valid(cache_path: str, source_path: Optional[str]) -> bool:
+    """判断缓存是否存在且未过期。"""
     if not source_path or not os.path.exists(cache_path) or not os.path.exists(source_path):
         return False
     try:
@@ -115,9 +131,11 @@ def _is_cache_valid(cache_path: str, source_path: Optional[str]) -> bool:
         return False
 
 def _read_pickle_path(path: str) -> pd.DataFrame:
+    """读取 Pickle 缓存文件。"""
     return pd.read_pickle(path)
 
 def _write_pickle_safe(path: str, df: Optional[pd.DataFrame]) -> None:
+    """安全写入 Pickle 缓存。"""
     if df is None:
         return
     try:
@@ -126,6 +144,7 @@ def _write_pickle_safe(path: str, df: Optional[pd.DataFrame]) -> None:
         logger.warning("二进制缓存写入失败: %s", path, exc_info=exc)
 
 def _count_csv_rows(path: str) -> int:
+    """快速统计 CSV 行数（不含表头）。"""
     try:
         with open(path, "rb") as handle:
             count = 0
@@ -143,12 +162,15 @@ def load_summary(
     result_dir: str,
     use_cache: bool = SUMMARY_CACHE_DEFAULT
 ) -> Tuple[Optional[Dict[str, Any]], List[str]]:
+    """生成或读取预测结果摘要索引。"""
     errors: List[str] = []
+    # 检查源文件
     predict_path = os.path.join(result_dir, "predict_result.csv")
     if not os.path.exists(predict_path):
         return None, ["未找到 predict_result.csv"]
 
     summary_cache = _summary_cache_path(result_dir)
+    # 命中缓存则直接返回
     if use_cache and _is_cache_valid(summary_cache, predict_path):
         try:
             cached = pd.read_pickle(summary_cache)
@@ -157,6 +179,7 @@ def load_summary(
             logger.warning("摘要缓存读取失败", exc_info=exc)
 
     try:
+        # 采样读取并构建摘要
         row_count = _count_csv_rows(predict_path)
         sample_df = pd.read_csv(
             predict_path,
@@ -171,6 +194,7 @@ def load_summary(
             "columns": sample_df.columns.tolist(),
             "sample": sample_df
         }
+        # 写入缓存
         if use_cache:
             pd.to_pickle(summary, summary_cache)
         return summary, errors
@@ -185,14 +209,14 @@ def _load_results_core(
     use_binary_cache: bool = BINARY_CACHE_DEFAULT
 ) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], List[str], List[str]]:
     """
-    数据集加载核心引擎。
-    从物理磁盘读取反卷积结果，并执行分级探测策略搜索关联的空间位点坐标文件。
+    数据集加载核心入口。
+    从磁盘读取反卷积结果，并按层级策略查找关联坐标文件。
     """
     predict_path = os.path.join(result_dir, "predict_result.csv")
     if not os.path.exists(predict_path):
         return None, None, ["未找到 predict_result.csv"], []
     
-    # 执行分级路径探测机制：结果目录 -> 数据集父目录 -> combined 合并目录
+    # 分级路径探测：结果目录 -> 数据集父目录 -> combined 目录
     coord_in_result = os.path.join(result_dir, "coordinates.csv")
     parent_dir = os.path.dirname(result_dir)
     coord_in_parent = os.path.join(parent_dir, "coordinates.csv")
@@ -208,6 +232,7 @@ def _load_results_core(
     coords = None
     predict_cache, coords_cache = _cache_paths(result_dir)
 
+    # 命中预测结果缓存
     if use_binary_cache and _is_cache_valid(predict_cache, predict_path):
         try:
             predict_df = _read_pickle_path(predict_cache)
@@ -215,6 +240,7 @@ def _load_results_core(
             logger.warning("预测结果缓存读取失败", exc_info=exc)
             predict_df = None
 
+    # 命中坐标缓存
     if use_binary_cache and coord_path and _is_cache_valid(coords_cache, coord_path):
         try:
             coords = _read_pickle_path(coords_cache)
@@ -230,10 +256,12 @@ def _load_results_core(
             coords = None
 
     if predict_df is not None and (coords is not None or coord_path is None):
+        # 缓存数据直接校验
         predict_df, coords, errors, warnings = validate_dataset(predict_df, coords)
         return predict_df, coords, errors, warnings
 
     if predict_df is None:
+        # 预测结果与坐标并行读取
         if use_parallel and coord_path:
             with ThreadPoolExecutor(max_workers=2) as executor:
                 predict_future = executor.submit(_read_csv_path, predict_path)
@@ -255,6 +283,7 @@ def _load_results_core(
                     logger.warning("坐标文件读取失败: %s", coord_path, exc_info=exc)
                     coords = None
         else:
+            # 预测结果与坐标串行读取
             try:
                 predict_df = _read_csv_path(predict_path)
             except Exception as exc:
@@ -274,6 +303,7 @@ def _load_results_core(
                     logger.warning("坐标文件读取失败: %s", coord_path, exc_info=exc)
                     coords = None
     elif coords is None and coord_path:
+        # 已有预测结果，仅补充坐标
         try:
             coords = _read_csv_path(coord_path)
             logger.info(
@@ -290,6 +320,7 @@ def _load_results_core(
         logger.warning("未找到可用的坐标文件")
 
     if use_binary_cache:
+        # 更新二进制缓存
         _write_pickle_safe(predict_cache, predict_df)
         _write_pickle_safe(coords_cache, coords)
 
@@ -302,6 +333,7 @@ def load_results(
     use_parallel: bool = PARALLEL_LOAD_DEFAULT,
     use_binary_cache: bool = BINARY_CACHE_DEFAULT
 ) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], List[str], List[str]]:
+    """加载数据集并返回预测结果与坐标。"""
     return _load_results_core(result_dir, use_parallel, use_binary_cache)
 
 def prewarm_cache(
@@ -309,11 +341,12 @@ def prewarm_cache(
     use_parallel: bool,
     use_binary_cache: bool
 ) -> Tuple[List[str], List[str]]:
+    """预热缓存并返回潜在的错误与警告信息。"""
     _, _, errors, warnings = _load_results_core(result_dir, use_parallel, use_binary_cache)
     return errors, warnings
 
 def get_cell_types(predict_df: pd.DataFrame) -> List[str]:
-    """获取预测矩阵中的各细胞亚群名称集合。"""
+    """获取预测矩阵中的细胞类型名称列表。"""
     return predict_df.columns.tolist()
 
 
@@ -322,8 +355,8 @@ def load_from_uploaded_files(
     use_parallel: bool = PARALLEL_LOAD_DEFAULT
 ) -> Tuple[Optional[pd.DataFrame], Optional[pd.DataFrame], List[str], List[str]]:
     """
-    云端数据管道加载逻辑。
-    直接处理浏览器上传的字节流对象，并执行内存级索性对齐。
+    云端上传数据加载逻辑。
+    解析浏览器上传字节流，并完成内存级对齐与校验。
     """
     predict_df = None
     coords = None
@@ -331,6 +364,7 @@ def load_from_uploaded_files(
     predict_file = None
     coords_file = None
 
+    # 识别上传文件类型
     for uploaded_file in uploaded_files:
         filename = uploaded_file.name.lower()
         if "predict" in filename and filename.endswith(".csv"):
@@ -339,6 +373,7 @@ def load_from_uploaded_files(
             coords_file = uploaded_file
 
     if use_parallel and predict_file and coords_file:
+        # 并行读取预测结果与坐标
         try:
             predict_bytes = predict_file.getvalue()
             coords_bytes = coords_file.getvalue()
@@ -364,6 +399,7 @@ def load_from_uploaded_files(
                 logger.warning("上传文件读取失败: %s", coords_file.name, exc_info=exc)
                 coords = None
     else:
+        # 串行读取上传文件
         for uploaded_file in uploaded_files:
             filename = uploaded_file.name.lower()
             try:
@@ -378,5 +414,6 @@ def load_from_uploaded_files(
                 logger.warning("上传文件读取失败: %s", uploaded_file.name, exc_info=exc)
                 continue
 
+    # 统一校验与对齐
     predict_df, coords, errors, warnings = validate_dataset(predict_df, coords)
     return predict_df, coords, errors, warnings

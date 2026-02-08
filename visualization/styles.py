@@ -5,12 +5,12 @@ import base64
 
 def _get_stardust_b64():
     """读取本地纹理图片并转换为 Base64，如果不存在则回退到 URL"""
-    # Try local asset first
+    # 优先读取本地纹理资源
     path = os.path.join(os.path.dirname(__file__), "assets", "stardust.png")
     if os.path.exists(path):
         with open(path, "rb") as f:
             return f"data:image/png;base64,{base64.b64encode(f.read()).decode()}"
-    # Fallback if file missing
+    # 本地资源缺失时回退到在线纹理
     return "https://www.transparenttextures.com/patterns/stardust.png"
 
 def get_css():
