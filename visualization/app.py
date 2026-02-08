@@ -6,6 +6,9 @@ DeconvGNN-Vis 可视化系统入口
 import streamlit as st
 import pandas as pd
 import os
+import logging
+import re
+from typing import List, Dict
 
 
 # --- 跨环境导入适配 (支持本地开发与 Streamlit Cloud) ---
@@ -26,6 +29,45 @@ st.set_page_config(
     initial_sidebar_state="collapsed" # 初始收起侧边栏以展示欢迎页
 )
 
+def _get_env_int(key: str, default: int) -> int:
+    try:
+        value = int(os.getenv(key, default))
+        return value if value > 0 else default
+    except Exception:
+        return default
+
+def _get_logger() -> logging.Logger:
+    logger = logging.getLogger("visualization.app")
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    logger.setLevel(os.getenv("DECONV_VIS_LOG_LEVEL", "INFO").upper())
+    return logger
+
+logger = _get_logger()
+MAX_UPLOAD_MB = _get_env_int("DECONV_VIS_MAX_UPLOAD_MB", 200)
+DATASET_NAME_MAX_LEN = _get_env_int("DECONV_VIS_DATASET_NAME_MAX_LEN", 64)
+
+def normalize_dataset_name(name: str) -> str:
+    cleaned = re.sub(r"[^\w\u4e00-\u9fff\- ]+", "_", name).strip()
+    cleaned = cleaned[:DATASET_NAME_MAX_LEN]
+    return cleaned if cleaned else "dataset"
+
+def ensure_unique_dataset_name(name: str, existing: Dict[str, str]) -> str:
+    if name not in existing:
+        return name
+    counter = 1
+    while f"{name}_{counter}" in existing:
+        counter += 1
+    return f"{name}_{counter}"
+
+def render_messages(errors: List[str], warnings: List[str]) -> None:
+    for err in errors:
+        st.error(f"❌ {err}")
+    for warn in warnings:
+        st.warning(f"⚠️ {warn}")
 
 
 # 注入自定义样式（强制按钮不换行、隐藏默认菜单等）
@@ -105,9 +147,11 @@ def main():
         def rename_dialog(default_name, valid_path):
             new_name = st.text_input("显示名称", value=default_name)
             if st.button("确认添加", type="primary", use_container_width=True):
-                if new_name:
-                    st.session_state.data_sources[new_name] = valid_path
-                    st.session_state.dataset_selector = new_name
+                if new_name.strip():
+                    normalized_name = normalize_dataset_name(new_name)
+                    normalized_name = ensure_unique_dataset_name(normalized_name, st.session_state.data_sources)
+                    st.session_state.data_sources[normalized_name] = valid_path
+                    st.session_state.dataset_selector = normalized_name
                     st.session_state.temp_import_path = "" # Clear path
                     st.session_state.rename_dialog_open = False # Close flag
                     
@@ -153,7 +197,7 @@ def main():
             else:
                 base_name = raw_basename
             
-            rename_dialog(base_name, st.session_state.temp_import_path)
+            rename_dialog(normalize_dataset_name(base_name), st.session_state.temp_import_path)
 
         # Cloud Import Logic (Only visible if Cloud mode AND show_import is True)
         if is_cloud and st.session_state.show_import:
@@ -169,6 +213,13 @@ def main():
                 )
                 
                 if uploaded_files:
+                    oversize_files = [
+                        f.name for f in uploaded_files
+                        if getattr(f, "size", 0) > MAX_UPLOAD_MB * 1024 * 1024
+                    ]
+                    if oversize_files:
+                        st.error(f"上传文件过大，单文件上限 {MAX_UPLOAD_MB}MB: {', '.join(oversize_files)}")
+                        return
                     file_names = [f.name.lower() for f in uploaded_files]
                     if any("predict" in name for name in file_names):
                         # Auto-generate default name: dataset_1, dataset_2, ...
@@ -180,15 +231,20 @@ def main():
                         new_name = st.text_input("数据集显示名称", value=default_cloud_name)
                         
                         def on_upload_confirm():
-                            if new_name:
-                                pdf, cdf = data_loader.load_from_uploaded_files(uploaded_files)
+                            if new_name.strip():
+                                pdf, cdf, errors, warnings = data_loader.load_from_uploaded_files(uploaded_files)
+                                render_messages(errors, warnings)
+                                if errors:
+                                    return
                                 if pdf is not None:
+                                    normalized_name = normalize_dataset_name(new_name)
+                                    normalized_name = ensure_unique_dataset_name(normalized_name, st.session_state.data_sources)
                                     st.session_state.uploaded_data_cache = {
                                         'predict_df': pdf,
                                         'coords': cdf
                                     }
-                                    st.session_state.data_sources[new_name] = "__UPLOADED__"
-                                    st.session_state.dataset_selector = new_name
+                                    st.session_state.data_sources[normalized_name] = "__UPLOADED__"
+                                    st.session_state.dataset_selector = normalized_name
                                     st.session_state.show_import = False
                                 else:
                                     st.toast("❌ 数据解析失败，请检查 CSV 格式", icon="❌")
@@ -222,13 +278,20 @@ def main():
         if 'uploaded_data_cache' in st.session_state:
             predict_df = st.session_state.uploaded_data_cache['predict_df']
             coords = st.session_state.uploaded_data_cache['coords']
+            predict_df, coords, errors, warnings = data_loader.validate_dataset(predict_df, coords)
+            render_messages(errors, warnings)
+            if errors:
+                return
         else:
             st.error("❌ 会话过期：上传的数据已失效，请重新上传文件。")
             return
     else:
         # 本地开发加载逻辑：通过文件系统读取
         with st.spinner("正在加载数据集..."):
-            predict_df, coords = data_loader.load_results(result_dir)
+            predict_df, coords, errors, warnings = data_loader.load_results(result_dir)
+        render_messages(errors, warnings)
+        if errors:
+            return
     
     if predict_df is not None:
         cell_types = data_loader.get_cell_types(predict_df)

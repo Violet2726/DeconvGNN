@@ -17,3 +17,5 @@
 
 
 .\_miniconda\python.exe .\utils\generate_plot.py --dataset CytAssist_11mm_FFPE_Mouse_Embryo V1_Adult_Mouse_Brain_Coronal_Section_1 V1_Mouse_Brain_Sagittal_Anterior V1_Mouse_Brain_Sagittal_Posterior
+
+.\_miniconda\python.exe -m streamlit run visualization/app.py

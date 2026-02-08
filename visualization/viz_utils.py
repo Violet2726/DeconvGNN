@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import io
 import base64
+import os
+import logging
 from PIL import Image
 import pandas as pd
 import hashlib
@@ -20,20 +22,41 @@ try:
 except ImportError:
     HAS_STREAMLIT = False
 
-# 可视化算法配置
-TOP_N_CATEGORIES = 4  # 空间饼图仅渲染占比前 N 的类别以保证可读性
+def _get_env_int(key: str, default: int) -> int:
+    try:
+        value = int(os.getenv(key, default))
+        return value if value > 0 else default
+    except Exception:
+        return default
 
-# 渲染性能优化参数
-LOD_THRESHOLD = 5000     # 启用细节层次(LOD)采样的阈值
-LOD_SAMPLE_RATIO = 0.3    # LOD 模式下的下采样比例
-CHART_CACHE_SIZE = 16     # 内存中驻留的图表缓存上限
+def _get_env_float(key: str, default: float) -> float:
+    try:
+        value = float(os.getenv(key, default))
+        return value if value > 0 else default
+    except Exception:
+        return default
+
+def _get_logger() -> logging.Logger:
+    logger = logging.getLogger("visualization.viz_utils")
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    logger.setLevel(os.getenv("DECONV_VIS_LOG_LEVEL", "INFO").upper())
+    return logger
+
+logger = _get_logger()
+TOP_N_CATEGORIES = _get_env_int("DECONV_VIS_TOP_N_CATEGORIES", 4)
+LOD_THRESHOLD = _get_env_int("DECONV_VIS_LOD_THRESHOLD", 5000)
+LOD_SAMPLE_RATIO = _get_env_float("DECONV_VIS_LOD_SAMPLE_RATIO", 0.3)
+CHART_CACHE_SIZE = _get_env_int("DECONV_VIS_CHART_CACHE_SIZE", 16)
 
 def is_cloud_environment() -> bool:
     """
     判断当前应用是否运行在 Streamlit Cloud 云端环境。
     用于区分本地文件交互与云端文件上传逻辑。
     """
-    import os
     return (
         os.environ.get("STREAMLIT_SHARING_MODE") is not None or
         os.environ.get("IS_STREAMLIT_CLOUD") is not None or
@@ -148,7 +171,7 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
     # 半径系数经验值
     radius = avg_spacing * 0.42
     
-    print(f"  ℹ️ [性能优化] 使用 PatchCollection 批量渲染 (DPI: {dpi}, 半径: {radius:.4f})")
+    logger.info("使用 PatchCollection 批量渲染 DPI=%s 半径=%.4f", dpi, radius)
     
     wedges = []
     
@@ -618,7 +641,7 @@ def generate_and_save_interactive_assets(predict_df, coordinates, output_dir):
     """
     import os
     
-    print(f"正在生成交互式可视化背景图 (Top {TOP_N_CATEGORIES})...")
+    logger.info("正在生成交互式可视化背景图 Top=%s", TOP_N_CATEGORIES)
     
     # 确保坐标列名匹配
     # generate_clean_pie_chart_top_n 期望 coordinates 有 'x', 'y' 列
@@ -632,7 +655,7 @@ def generate_and_save_interactive_assets(predict_df, coordinates, output_dir):
     # 确保索引对齐
     common_index = predict_df.index.intersection(coords.index)
     if len(common_index) < len(predict_df):
-        print(f"警告: 坐标与预测结果索引不完全匹配。交集: {len(common_index)}")
+        logger.warning("坐标与预测结果索引不完全匹配 交集=%s", len(common_index))
     
     predict_df = predict_df.loc[common_index]
     coords = coords.loc[common_index]
@@ -647,9 +670,9 @@ def generate_and_save_interactive_assets(predict_df, coordinates, output_dir):
             os.makedirs(output_dir, exist_ok=True)
             
         save_pie_chart_background(img, xlim, ylim, output_dir)
-        print(f"交互式背景图已保存至: {output_dir}")
-    except Exception as e:
-        print(f"生成可视化资源时出错: {e}")
+        logger.info("交互式背景图已保存: %s", output_dir)
+    except Exception as exc:
+        logger.error("生成可视化资源时出错", exc_info=exc)
 
 def handle_visualization_generation(paths):
     """
@@ -658,9 +681,7 @@ def handle_visualization_generation(paths):
     import os
     import pandas as pd
     
-    print("\n" + "="*60)
-    print("[可视化] 正在生成交互式可视化资源 (Top 4 饼图)...")
-    print("="*60)
+    logger.info("开始生成交互式可视化资源")
     
     res_path = os.path.join(paths['output_path'], 'predict_result.csv')
     coor_path = os.path.join(paths['ST_path'], 'coordinates.csv')
@@ -674,15 +695,13 @@ def handle_visualization_generation(paths):
             
             # 调用生成函数
             generate_and_save_interactive_assets(pred_df, coord_df, paths['output_path'])
-            print("[成功] 可视化资源生成完成！")
-        except Exception as e:
-            print(f"[错误] 可视化生成失败: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.info("可视化资源生成完成")
+        except Exception as exc:
+            logger.error("可视化生成失败", exc_info=exc)
     else:
-        print(f"[警告] 找不到结果文件或坐标文件，跳过可视化生成。")
-        print(f"  预测结果: {res_path} ({'存在' if os.path.exists(res_path) else '缺失'})")
-        print(f"  坐标文件: {coor_path} ({'存在' if os.path.exists(coor_path) else '缺失'})")
+        logger.warning("找不到结果文件或坐标文件，跳过生成")
+        logger.warning("预测结果: %s", res_path if os.path.exists(res_path) else f"{res_path} 缺失")
+        logger.warning("坐标文件: %s", coor_path if os.path.exists(coor_path) else f"{coor_path} 缺失")
 
 def get_or_generate_pie_background(predict_df: pd.DataFrame, coords: pd.DataFrame, 
                                  result_dir: str, 
@@ -695,7 +714,6 @@ def get_or_generate_pie_background(predict_df: pd.DataFrame, coords: pd.DataFram
     2. 若命中，执行毫秒级磁盘读取。
     3. 若未命中，则唤起并行渲染流水线生成新资产，并视环境执行自动保存行为。
     """
-    import os
     import json
     from PIL import Image
     
@@ -710,8 +728,8 @@ def get_or_generate_pie_background(predict_df: pd.DataFrame, coords: pd.DataFram
             with open(precomputed_meta_path, 'r') as f:
                 metadata = json.load(f)
                 return bg_img, (metadata['xlim'], metadata['ylim'])
-        except Exception as e:
-            print(f"读取缓存背景失败，将重新生成: {e}")
+        except Exception as exc:
+            logger.warning("读取缓存背景失败，将重新生成", exc_info=exc)
             
     # 2. 现场生成
     bg_img, (xlim, ylim) = generate_clean_pie_chart(
