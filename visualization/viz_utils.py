@@ -86,12 +86,15 @@ LOGO_PATH = ASSETS_DIR / "logo.png"
 BANNER_PATH = ASSETS_DIR / "banner.png"
 
 def get_base64_image(image_path: str) -> str:
-    """读取图片并转换为 Base64 编码字符串。"""
     try:
         with open(image_path, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode()
     except Exception:
         return ""
+
+@cached_chart
+def get_base64_image_cached(image_path: str) -> str:
+    return get_base64_image(image_path)
 
 
 def get_adaptive_dpi(n_points: int) -> int:
@@ -134,7 +137,7 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
     
     # 准备颜色 (使用智能聚类配色)
     labels = predict_df.columns.tolist()
-    color_map = get_color_map(labels, predict_df)
+    color_map = get_color_map_cached(tuple(labels), predict_df)
     colors = [color_map[label] for label in labels]
     
     update_progress(0.1, "计算画布尺寸...")
@@ -230,7 +233,7 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
 
     # 4. 一次性添加到 Axes
     if wedges:
-        print(f"  ℹ️ [图像渲染] 正在渲染 {len(wedges)} 个扇形图层...")
+        logger.info("渲染扇形图层 count=%s", len(wedges))
         # match_original=True 确保保留每个 Wedge 的颜色
         p = PatchCollection(wedges, match_original=True)
         ax.add_collection(p)
@@ -303,8 +306,8 @@ def get_color_map(labels: List[str], predict_df: Optional[pd.DataFrame] = None) 
                 # 5. 重排标签
                 sorted_labels = [correlation_matrix.columns[i] for i in ind]
                 # print(f"  ℹ️ [Auto-Color] 已根据空间相关性重排细胞类型顺序")
-        except Exception as e:
-            print(f"  ⚠️ [Color] 聚类排序失败，回退到字母序: {e}")
+        except Exception as exc:
+            logger.warning("颜色聚类排序失败，回退到字母序", exc_info=exc)
             
     n = len(sorted_labels)
     colors = []
@@ -322,6 +325,10 @@ def get_color_map(labels: List[str], predict_df: Optional[pd.DataFrame] = None) 
         colors.append(hex_color)
     
     return dict(zip(sorted_labels, colors))
+
+@cached_chart
+def get_color_map_cached(labels: Tuple[str, ...], predict_df: Optional[pd.DataFrame] = None) -> Dict[str, str]:
+    return get_color_map(list(labels), predict_df)
 
 
 def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame, 
@@ -447,7 +454,7 @@ def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.Data
     
     display_df['pixel_size'] = adaptive_size
     
-    print(f"  ℹ️ [图形交互] 自适应点大小: {adaptive_size:.2f} (点数={n_points})")
+    logger.info("自适应点大小 %.2f 点数=%s", adaptive_size, n_points)
         
     # 修改：不再强制字母排序，而是跟随 color_map 的键顺序（即聚类顺序）
     # unique_types = sorted(predict_df.columns.tolist())
@@ -611,8 +618,8 @@ def save_pie_chart_background(img: Image.Image, xlim: float, ylim: float, result
          img.save(target_img)
          with open(target_meta, 'w') as f:
              json.dump({'xlim': xlim, 'ylim': ylim}, f)
-    except Exception as e:
-         print(f"警告: 无法保存背景缓存: {e}")
+    except Exception as exc:
+         logger.warning("无法保存背景缓存", exc_info=exc)
 
 def open_folder_dialog() -> Optional[str]:
     """调取操作系统原生文件夹选择对话框 (仅限本地环境)。"""
@@ -630,8 +637,8 @@ def open_folder_dialog() -> Optional[str]:
         # 清理
         root.destroy()
         return folder if folder else None
-    except Exception as e:
-        print(f"打开文件夹对话框出错: {e}")
+    except Exception as exc:
+        logger.warning("打开文件夹对话框出错", exc_info=exc)
         return None
 
 def generate_and_save_interactive_assets(predict_df, coordinates, output_dir):
