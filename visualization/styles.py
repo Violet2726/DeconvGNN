@@ -910,6 +910,92 @@ def get_landing_page_html(banner_src):
             50% { opacity: 0.4; text-shadow: none; }
         }
 
+        .hero-cta {
+            margin-top: 1.5rem;
+        }
+
+        .hero-cta-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            padding: 14px 32px;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .hero-cta-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+        }
+
+        .trust-badges {
+            display: flex;
+            justify-content: center;
+            gap: 3rem;
+            margin-top: 2rem;
+            padding: 1.5rem 0;
+            border-top: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .trust-badge {
+            text-align: center;
+        }
+
+        .trust-badge-value {
+            font-size: 3.2rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #00f260, #0575E6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .trust-badge-label {
+            font-size: 1.1rem;
+            color: #94a3b8; /* 冷蓝灰，低调哑光 */
+            margin-top: 0.3rem;
+            font-weight: 400;
+        }
+
+        .use-cases-section {
+            margin-top: 3rem;
+        }
+
+        .use-cases-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .use-case-tag {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 0.8rem 1.5rem;
+            border-radius: 50px;
+            font-size: 1rem;
+            color: rgba(255,255,255,0.7);
+            transition: all 0.3s ease;
+        }
+
+        .use-case-tag:hover {
+            background: rgba(102, 126, 234, 0.1);
+            border-color: rgba(102, 126, 234, 0.3);
+            color: #fff;
+        }
+
         .features-container {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -935,7 +1021,7 @@ def get_landing_page_html(banner_src):
         }
 
         .card-title-main {
-            font-size: 1.4rem;
+            font-size: 1.7rem;
             font-weight: 700;
             margin-bottom: 0.8rem;
             background: linear-gradient(90deg, #00f260, #0575E6);
@@ -949,16 +1035,17 @@ def get_landing_page_html(banner_src):
         .card-title-main::before {
             content: '';
             width: 4px;
-            height: 1.2rem;
+            height: 1.4rem;
             background: linear-gradient(180deg, #00f260, #0575E6);
             border-radius: 2px;
         }
 
         .card-description {
-            font-size: 0.9rem;
-            color: rgba(255, 255, 255, 0.6);
+            font-size: 1.1rem;
+            color: #94a3b8; /* 冷蓝灰，低调哑光 */
             line-height: 1.7;
             letter-spacing: 0.02em;
+            font-weight: 300;
         }
 
         .data-overview-section {
@@ -966,7 +1053,7 @@ def get_landing_page_html(banner_src):
         }
 
         .section-title {
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             font-weight: 700;
             background: linear-gradient(90deg, #667eea, #764ba2);
             -webkit-background-clip: text;
@@ -1009,9 +1096,10 @@ def get_landing_page_html(banner_src):
         }
 
         .overview-card-label {
-            font-size: 0.75rem;
-            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.85rem;
+            color: #94a3b8; /* 冷蓝灰 */
             margin-bottom: 0.2rem;
+            font-weight: 400;
         }
 
         .overview-card-title {
@@ -1027,7 +1115,7 @@ def get_landing_page_html(banner_src):
         }
 
         .tech-stack-title {
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             font-weight: 700;
             background: linear-gradient(90deg, #667eea, #764ba2);
             -webkit-background-clip: text;
@@ -1169,6 +1257,26 @@ def get_landing_page_html(banner_src):
             <p class="hero-subtitle">基于深度图神经网络的高性能空间转录组反卷积分析平台</p>
         </div>
     </div>
+    
+    <div class="trust-badges">
+        <div class="trust-badge">
+            <div class="trust-badge-value">50,000+</div>
+            <div class="trust-badge-label">空间位点支持</div>
+        </div>
+        <div class="trust-badge">
+            <div class="trust-badge-value">30+</div>
+            <div class="trust-badge-label">细胞类型识别</div>
+        </div>
+        <div class="trust-badge">
+            <div class="trust-badge-value">GNN</div>
+            <div class="trust-badge-label">图神经网络驱动</div>
+        </div>
+        <div class="trust-badge">
+            <div class="trust-badge-value">Open</div>
+            <div class="trust-badge-label">开源研究工具</div>
+        </div>
+    </div>
+
     <div class="features-container">
         <div class="bio-card">
             <div class="card-title-main">WebGL 2.0 加速</div>
@@ -1183,6 +1291,7 @@ def get_landing_page_html(banner_src):
             <p class="card-description">独创的 Session-State 缓存机制，多数据集切换实现快速响应，拒绝冗余计算等待。</p>
         </div>
     </div>
+
     
     <div class="data-overview-section">
         <div class="section-header">
