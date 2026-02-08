@@ -602,6 +602,186 @@ def get_css():
             margin: 0;
             font-size: 1rem;
         }
+
+        /* ==========================================================================
+           6. 交互式数据总览 (Interactive Data Overview)
+           ========================================================================== */
+        .data-overview-section {
+            margin-top: 4rem;
+        }
+
+        .section-header {
+            margin-bottom: 0.5rem;
+        }
+
+        .section-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .section-subtitle {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+        }
+
+        .overview-cards {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+        }
+
+        .overview-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 1.5rem 1.2rem;
+            text-align: left;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .overview-card::before {
+            content: '';
+            position: absolute;
+            top: 0; right: 0;
+            width: 60px; height: 60px;
+            background: radial-gradient(circle, rgba(102, 126, 234, 0.15), transparent 70%);
+            pointer-events: none;
+        }
+
+        .overview-card:hover {
+            background: rgba(102, 126, 234, 0.08);
+            border-color: rgba(102, 126, 234, 0.4);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+        }
+
+        .overview-card-icon {
+            font-size: 1.2rem;
+            margin-bottom: 0.8rem;
+            display: block;
+        }
+
+        .overview-card-label {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 0.3rem;
+            font-weight: 500;
+        }
+
+        .overview-card-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #00f260, #0575E6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* ==========================================================================
+           7. 技术栈展示条 (Tech Stack Marquee)
+           ========================================================================== */
+        .tech-stack-section {
+            margin-top: 4rem;
+            padding: 2rem 0;
+        }
+
+        .tech-stack-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .tech-stack-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 0.3rem;
+        }
+
+        .tech-stack-subtitle {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.9rem;
+        }
+
+        .marquee-container {
+            overflow: hidden;
+            position: relative;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 16px;
+            padding: 1.5rem 0;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        /* 左右渐隐遮罩 */
+        .marquee-container::before,
+        .marquee-container::after {
+            content: '';
+            position: absolute;
+            top: 0; bottom: 0;
+            width: 80px;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .marquee-container::before {
+            left: 0;
+            background: linear-gradient(to right, rgba(14, 17, 23, 1), transparent);
+        }
+
+        .marquee-container::after {
+            right: 0;
+            background: linear-gradient(to left, rgba(14, 17, 23, 1), transparent);
+        }
+
+        .marquee-track {
+            display: flex;
+            gap: 3rem;
+            animation: marquee-scroll 25s linear infinite;
+            width: max-content;
+        }
+
+        @keyframes marquee-scroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        .tech-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 80px;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+
+        .tech-item:hover {
+            opacity: 1;
+        }
+
+        .tech-icon {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+            filter: grayscale(20%);
+            transition: filter 0.3s ease, transform 0.3s ease;
+        }
+
+        .tech-item:hover .tech-icon {
+            filter: grayscale(0%) drop-shadow(0 0 8px rgba(102, 126, 234, 0.5));
+            transform: scale(1.1);
+        }
+
+        .tech-name {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 500;
+        }
     </style>
     """
     return css_template.replace("__STARDUST_IMAGE__", _get_stardust_b64())
@@ -615,9 +795,370 @@ def inject_custom_css():
 
 def get_landing_page_html(banner_src):
     """
-    构造系统初始化引导页面的 HTML 结构。
+    构造系统初始化引导页面的完整 HTML 结构（含内嵌 CSS）。
+    用于 st.components.v1.html() 渲染。
     """
-    return f"""
+    # 落地页专用 CSS
+    landing_css = """
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: transparent;
+            color: #fff;
+        }
+        
+        .landing-wrapper {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .banner-container {
+            border-radius: 20px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 40px 100px rgba(0,0,0,0.8);
+            margin-bottom: 2rem;
+            border: 1px solid rgba(255,255,255,0.05);
+            height: 480px;
+        }
+        
+        .banner-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center center;
+            transform: scale(1.02);
+            filter: brightness(0.48) contrast(1.1) saturate(1.1);
+            animation: cinematic-zoom 20s ease-in-out infinite alternate;
+        }
+
+        @keyframes cinematic-zoom {
+            0% { transform: scale(1.02); }
+            100% { transform: scale(1.15); }
+        }
+        
+        .banner-container::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom, transparent 50%, rgba(14, 17, 23, 0.6) 100%);
+            z-index: 1;
+        }
+
+        .hero-section {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -40%);
+            z-index: 10;
+            text-align: center;
+            width: 100%;
+            padding: 0 2rem;
+        }
+
+        .hero-tagline {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            color: rgba(0, 242, 96, 0.8);
+            letter-spacing: 0.4em;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid rgba(0, 242, 96, 0.3);
+            padding-bottom: 5px;
+            display: inline-block;
+        }
+
+        .hero-title-main {
+            font-size: 5rem;
+            font-weight: 800;
+            letter-spacing: -2px;
+            line-height: 1.1;
+            margin: 0.5rem 0 1.5rem 0;
+            background: linear-gradient(180deg, #ffffff 10%, #a5b4fc 60%, #667eea 90%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.8));
+        }
+        
+        .hero-subtitle {
+            background: rgba(14, 17, 23, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50px;
+            padding: 10px 30px;
+            color: rgba(255,255,255,0.9);
+            font-size: 1.1rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .hero-subtitle::before {
+            content: '●';
+            color: #00f260;
+            font-size: 0.8rem;
+            animation: blink 2s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; text-shadow: 0 0 10px #00f260; }
+            50% { opacity: 0.4; text-shadow: none; }
+        }
+
+        .features-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-top: 2rem;
+        }
+
+        .bio-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 2rem;
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .bio-card:hover {
+            background: rgba(102, 126, 234, 0.06);
+            border-color: rgba(102, 126, 234, 0.3);
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        }
+
+        .card-title-main {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 0.8rem;
+            background: linear-gradient(90deg, #00f260, #0575E6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-title-main::before {
+            content: '';
+            width: 4px;
+            height: 1.2rem;
+            background: linear-gradient(180deg, #00f260, #0575E6);
+            border-radius: 2px;
+        }
+
+        .card-description {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.6);
+            line-height: 1.7;
+            letter-spacing: 0.02em;
+        }
+
+        .data-overview-section {
+            margin-top: 3rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .section-subtitle {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .overview-cards {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
+        }
+
+        .overview-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 1.2rem 1rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .overview-card:hover {
+            background: rgba(102, 126, 234, 0.1);
+            border-color: rgba(102, 126, 234, 0.4);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.2);
+        }
+
+        .overview-card-icon {
+            font-size: 1.2rem;
+            margin-bottom: 0.6rem;
+            display: block;
+        }
+
+        .overview-card-label {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 0.2rem;
+        }
+
+        .overview-card-title {
+            font-size: 1rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #00f260, #0575E6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .tech-stack-section {
+            margin-top: 3rem;
+        }
+
+        .tech-stack-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+
+        .tech-stack-subtitle {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+        }
+
+        .marquee-container {
+            overflow: hidden;
+            position: relative;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 16px;
+            padding: 1.2rem 0;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .marquee-container::before,
+        .marquee-container::after {
+            content: '';
+            position: absolute;
+            top: 0; bottom: 0;
+            width: 60px;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        .marquee-container::before {
+            left: 0;
+            background: linear-gradient(to right, rgba(14, 17, 23, 1), transparent);
+        }
+
+        .marquee-container::after {
+            right: 0;
+            background: linear-gradient(to left, rgba(14, 17, 23, 1), transparent);
+        }
+
+        .marquee-track {
+            display: flex;
+            gap: 2.5rem;
+            animation: marquee-scroll 30s linear infinite;
+            width: max-content;
+        }
+
+        @keyframes marquee-scroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-25%); }
+        }
+
+        .tech-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.4rem;
+            min-width: 70px;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+
+        .tech-item:hover {
+            opacity: 1;
+        }
+
+        .tech-icon {
+            width: 40px;
+            height: 40px;
+            object-fit: contain;
+        }
+
+        .tech-name {
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .step-guide {
+            margin-top: 3rem;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 20px;
+            padding: 2rem;
+            border: 1px dashed rgba(255, 255, 255, 0.1);
+            text-align: center;
+        }
+
+        .step-title {
+            background: linear-gradient(90deg, #00f260, #0575E6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 700;
+            font-size: 1.2rem;
+            margin-bottom: 0.8rem;
+        }
+        
+        .step-desc {
+            color: rgba(255,255,255,0.6); 
+            font-size: 0.95rem;
+        }
+    </style>
+    """
+    # 技术栈图标 (使用 CDN 图标)
+    tech_stack = [
+        ("Streamlit", "https://streamlit.io/images/brand/streamlit-mark-color.svg"),
+        ("PyTorch", "https://pytorch.org/assets/images/pytorch-logo.png"),
+        ("PyG", "https://raw.githubusercontent.com/pyg-team/pyg_sphinx_theme/master/pyg_sphinx_theme/static/img/pyg_logo.png"),
+        ("Pandas", "https://pandas.pydata.org/static/img/pandas_mark.svg"),
+        ("NumPy", "https://numpy.org/images/logo.svg"),
+        ("SciPy", "https://scipy.org/images/logo.svg"),
+        ("Scikit-learn", "https://upload.wikimedia.org/wikipedia/commons/0/05/Scikit_learn_logo_small.svg"),
+        ("Plotly", "https://images.plot.ly/logo/new-branding/plotly-logomark.png"),
+        ("Matplotlib", "https://matplotlib.org/stable/_static/logo_dark.svg"),
+        ("Seaborn", "https://seaborn.pydata.org/_static/logo-wide-lightbg.svg"),
+        ("Scanpy", "https://scanpy.readthedocs.io/en/stable/_static/Scanpy_Logo_BrightFG.svg"),
+        ("AnnData", "https://anndata.readthedocs.io/en/latest/_static/anndata_schema.svg"),
+        ("NetworkX", "https://networkx.org/_static/networkx_logo.svg"),
+    ]
+    
+    # 生成技术栈 HTML (复制4份实现无缝循环)
+    tech_items_html = ""
+    for name, icon_url in tech_stack * 4:  # 复制4份确保无缝
+        tech_items_html += f'''
+            <div class="tech-item">
+                <img src="{icon_url}" alt="{name}" class="tech-icon">
+                <span class="tech-name">{name}</span>
+            </div>
+        '''
+    
+    return landing_css + f"""
 <div class="landing-wrapper">
     <div class="banner-container">
         <img src="{banner_src}" class="banner-image">
@@ -630,24 +1171,66 @@ def get_landing_page_html(banner_src):
     </div>
     <div class="features-container">
         <div class="bio-card">
-            <i class="fa-solid fa-bolt card-icon-large"></i>
             <div class="card-title-main">WebGL 2.0 加速</div>
             <p class="card-description">底层采用 GPU 加速渲染引擎，支持数万级空间位点实时交互，缩放平移顺滑无阻。</p>
         </div>
         <div class="bio-card">
-            <i class="fa-solid fa-microscope card-icon-large"></i>
             <div class="card-title-main">超分辨率反卷积</div>
             <p class="card-description">集成先进的 GNN 架构，提供亚细胞级的组分还原，精准锁定每一个空间位点的细胞构成。</p>
         </div>
         <div class="bio-card">
-            <i class="fa-solid fa-database card-icon-large"></i>
             <div class="card-title-main">智能显存缓存</div>
-            <p class="card-description">独创的 Session-State 缓存机制，多数据集切换实现毫秒级响应，拒绝冗余计算等待。</p>
+            <p class="card-description">独创的 Session-State 缓存机制，多数据集切换实现快速响应，拒绝冗余计算等待。</p>
         </div>
     </div>
+    
+    <div class="data-overview-section">
+        <div class="section-header">
+            <div class="section-title">交互式数据总览</div>
+        </div>
+        <div class="overview-cards">
+            <div class="overview-card">
+                <span class="overview-card-icon">🧬</span>
+                <div class="overview-card-label">空间组分图谱</div>
+                <div class="overview-card-title">核心模块</div>
+            </div>
+            <div class="overview-card">
+                <span class="overview-card-icon">🔍</span>
+                <div class="overview-card-label">优势亚群分布</div>
+                <div class="overview-card-title">实时交互</div>
+            </div>
+            <div class="overview-card">
+                <span class="overview-card-icon">📊</span>
+                <div class="overview-card-label">细胞比例概览</div>
+                <div class="overview-card-title">统计洞察</div>
+            </div>
+            <div class="overview-card">
+                <span class="overview-card-icon">🔥</span>
+                <div class="overview-card-label">单细胞热度图</div>
+                <div class="overview-card-title">微观热点</div>
+            </div>
+            <div class="overview-card">
+                <span class="overview-card-icon">📁</span>
+                <div class="overview-card-label">原始数据详单</div>
+                <div class="overview-card-title">导出支持</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tech-stack-section">
+        <div class="tech-stack-header">
+            <div class="tech-stack-title">技术栈支持</div>
+        </div>
+        <div class="marquee-container">
+            <div class="marquee-track">
+                {tech_items_html}
+            </div>
+        </div>
+    </div>
+
     <div class="step-guide">
         <div class="step-title">快速启动分析</div>
-        <p class="step-desc">点击左上角展开侧边栏，从“选择数据集”中加载现有项目，或通过“✨ 导入”上传您的研究数据。</p>
+        <p class="step-desc">点击左上角展开侧边栏，从"选择数据集"中加载现有项目，或通过"📁 导入"上传您的研究数据。</p>
     </div>
 </div>
 """

@@ -4,6 +4,7 @@ DeconvGNN-Vis 可视化系统入口
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import os
 import logging
@@ -343,7 +344,8 @@ def main():
         banner_base64 = utils.get_base64_image_cached(str(utils.BANNER_PATH))
         banner_src = f"data:image/png;base64,{banner_base64}" if banner_base64 else ""
  
-        st.markdown(styles.get_landing_page_html(banner_src), unsafe_allow_html=True)
+        # 使用 components.html 渲染完整 HTML（支持复杂结构）
+        components.html(styles.get_landing_page_html(banner_src), height=1500, scrolling=True)
         return
     
 
