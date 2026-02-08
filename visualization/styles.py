@@ -1058,7 +1058,7 @@ def get_landing_page_html(banner_src):
             background: linear-gradient(90deg, #667eea, #764ba2);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            margin-bottom: 0.5rem;
+            margin-bottom: 1rem;
         }
 
         .section-subtitle {
@@ -1089,25 +1089,44 @@ def get_landing_page_html(banner_src):
             box-shadow: 0 10px 25px rgba(102, 126, 234, 0.2);
         }
 
-        .overview-card-icon {
-            font-size: 1.2rem;
-            margin-bottom: 0.6rem;
-            display: block;
+        .overview-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 0.8rem;
         }
 
-        .overview-card-label {
-            font-size: 0.85rem;
-            color: #94a3b8; /* 冷蓝灰 */
-            margin-bottom: 0.2rem;
-            font-weight: 400;
+        .blink-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #00f260;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #00f260;
+            animation: blink-dot-anim 2s infinite;
+            flex-shrink: 0;
+        }
+
+        @keyframes blink-dot-anim {
+            0% { opacity: 0.4; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); box-shadow: 0 0 15px #00f260; }
+            100% { opacity: 0.4; transform: scale(0.8); }
         }
 
         .overview-card-title {
-            font-size: 1rem;
+            font-size: 1.3rem;
             font-weight: 700;
             background: linear-gradient(90deg, #00f260, #0575E6);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
+            line-height: 1.2;
+        }
+
+        .overview-module-type {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            font-weight: 400;
+            display: block;
+            margin-left: 18px; /* Indent to align with text above (dot width + gap) */
         }
 
         .tech-stack-section {
@@ -1295,33 +1314,43 @@ def get_landing_page_html(banner_src):
     
     <div class="data-overview-section">
         <div class="section-header">
-            <div class="section-title">交互式数据总览</div>
+            <div class="section-title">交互组件</div>
         </div>
         <div class="overview-cards">
             <div class="overview-card">
-                <span class="overview-card-icon">🧬</span>
-                <div class="overview-card-label">空间组分图谱</div>
-                <div class="overview-card-title">核心模块</div>
+                <div class="overview-header">
+                    <div class="blink-dot"></div>
+                    <div class="overview-card-title">空间组分图谱</div>
+                </div>
+                <div class="overview-module-type">核心模块</div>
             </div>
             <div class="overview-card">
-                <span class="overview-card-icon">🔍</span>
-                <div class="overview-card-label">优势亚群分布</div>
-                <div class="overview-card-title">实时交互</div>
+                <div class="overview-header">
+                    <div class="blink-dot"></div>
+                    <div class="overview-card-title">优势亚群分布</div>
+                </div>
+                <div class="overview-module-type">实时交互</div>
             </div>
             <div class="overview-card">
-                <span class="overview-card-icon">📊</span>
-                <div class="overview-card-label">细胞比例概览</div>
-                <div class="overview-card-title">统计洞察</div>
+                <div class="overview-header">
+                    <div class="blink-dot"></div>
+                    <div class="overview-card-title">细胞比例概览</div>
+                </div>
+                <div class="overview-module-type">统计洞察</div>
             </div>
             <div class="overview-card">
-                <span class="overview-card-icon">🔥</span>
-                <div class="overview-card-label">单细胞热度图</div>
-                <div class="overview-card-title">微观热点</div>
+                <div class="overview-header">
+                    <div class="blink-dot"></div>
+                    <div class="overview-card-title">单细胞热度图</div>
+                </div>
+                <div class="overview-module-type">微观热点</div>
             </div>
             <div class="overview-card">
-                <span class="overview-card-icon">📁</span>
-                <div class="overview-card-label">原始数据详单</div>
-                <div class="overview-card-title">导出支持</div>
+                <div class="overview-header">
+                    <div class="blink-dot"></div>
+                    <div class="overview-card-title">原始数据详单</div>
+                </div>
+                <div class="overview-module-type">导出支持</div>
             </div>
         </div>
     </div>
