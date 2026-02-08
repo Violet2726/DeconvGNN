@@ -9,3 +9,7 @@ env/*
 _miniconda
 data
 file
+
+.npm-cache
+node_modules
+test-results
