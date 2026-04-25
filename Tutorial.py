@@ -1,6 +1,12 @@
 #!/usr/bin/env python
 # coding: utf-8
+"""
+STdGCN 训练示例脚本。
 
+该脚本从命令行读取数据集名称，组装训练所需的路径和参数，随后调用
+`run_STdGCN` 完成空间转录组反卷积。参数区块使用较长的中文说明，是为了
+让首次复现实验的用户可以直接在脚本中理解每个配置项的含义。
+"""
 
 import os
 import sys
@@ -21,40 +27,40 @@ import pandas as pd
 
 secure_random = secrets.randbelow(2 ** 32)
 
-# 2. 使用高精度时间 (纳秒级)
+# 使用多个来源混合随机种子，默认可以获得更高熵；随后为了复现实验，
+# 下面会覆盖为固定 seed。保留这段逻辑方便用户切换到非确定性实验。
+# 1. 使用高精度时间（纳秒级）。
 high_prec_time = int(time.time() * 1e9) % 2 ** 32
 
-# 3. 加入进程ID
+# 2. 加入进程 ID，避免同一时刻启动的多个进程完全一致。
 process_id = os.getpid() % 2 ** 16
 
-# 4. 使用Python内置随机状态的初始熵
+# 3. 使用 Python 内置随机状态的初始熵。
 random_state = hash(str(random.getstate()[1][:3])) % 2 ** 32
 
-# 组合所有源 (使用异或操作增强随机性)
+# 组合所有来源；异或不会扩大取值范围，但能混合各来源的低位信息。
 seed = secure_random ^ high_prec_time ^ (process_id << 16) ^ random_state
 
-# 确保在合法范围内
+# 确保种子位于 NumPy/PyTorch 常用的 32 位范围内。
 seed = seed % (2 ** 32)
 
 seed = 7931225
-# 设置Python内置随机模块
+# 为复现实验固定随机种子，同时同步 Python、NumPy、PyTorch 和 CUDA。
 random.seed(seed)
 
-# 设置NumPy随机种子
 np.random.seed(seed)
 
-# 设置PyTorch随机种子
 torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)  # 多GPU时使用
 
-# 设置cuDNN配置 (可能会降低性能)
+# 启用确定性算法可提升复现性，但可能牺牲一部分 cuDNN 性能。
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 torch.use_deterministic_algorithms(True, warn_only=True)
 os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 
-# 设置Python哈希种子 (如果使用哈希的场合)
+# 固定 Python 哈希种子，避免集合/字典顺序在不同进程中产生额外随机性。
 os.environ['PYTHONHASHSEED'] = str(seed)
 
 '''

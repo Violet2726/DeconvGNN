@@ -1,4 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+DeconvGNN-Vis 图表生成与可视化辅助函数。
 
+该模块把反卷积结果转换为 Plotly/Matplotlib 图表。核心设计是：用
+Matplotlib 批量渲染高分辨率饼图背景，再用 Plotly WebGL 提供交互层，
+从而在上万空间位点上兼顾细节展示和浏览器端性能。
+"""
 import matplotlib.pyplot as plt
 import numpy as np
 import io
@@ -15,7 +22,8 @@ from matplotlib.axes import Axes
 import plotly.graph_objects as go
 from pathlib import Path
 
-# 运行时环境检测与 Streamlit 兼容层
+# 运行时环境检测与 Streamlit 兼容层。该文件也会被离线脚本导入，
+# 因此不能强依赖 Streamlit 存在。
 try:
     import streamlit as st
     HAS_STREAMLIT = True
@@ -58,6 +66,9 @@ CHART_CACHE_SIZE = _get_env_int("DECONV_VIS_CHART_CACHE_SIZE", 16)
 def is_cloud_environment() -> bool:
     """
     判断是否运行在 Streamlit Cloud 环境，用于区分本地与云端流程。
+
+    Streamlit Cloud 不适合打开本地文件夹选择器，因此上传/导入逻辑会根据
+    该判断走不同分支。
     """
     return (
         os.environ.get("STREAMLIT_SHARING_MODE") is not None or
@@ -69,13 +80,16 @@ def get_data_fingerprint(df: pd.DataFrame) -> str:
     """
     生成 DataFrame 的轻量指纹，用于缓存键。
     采用形状与前后样本行，避免全量哈希成本。
+
+    注意:
+        该指纹用于界面缓存失效判断，不用于安全校验或精确文件完整性验证。
     """
     shape_str = f"{df.shape}"
     # 取前5行和后5行的字符串表示
     sample_str = df.head(5).to_string() + df.tail(5).to_string()
     return hashlib.md5((shape_str + sample_str).encode()).hexdigest()[:12]
 
-# 缓存装饰器：Streamlit 使用 st.cache_data，否则回退 lru_cache
+# 缓存装饰器：Streamlit 使用 st.cache_data，否则回退 lru_cache。
 def cached_chart(func):
     """根据运行环境选择 Streamlit 或 LRU 缓存装饰器。"""
     if HAS_STREAMLIT:
@@ -105,6 +119,9 @@ def get_base64_image_cached(image_path: str) -> str:
 def get_adaptive_dpi(n_points: int) -> int:
     """
     按数据规模动态调整 DPI，平衡清晰度与计算开销。
+
+    数据点越多，单个饼图在屏幕上越小，继续提高 DPI 的视觉收益有限；
+    因此大数据集降低 DPI 可以显著减少渲染时间和图片体积。
     """
     if n_points > 10000: return 150
     elif n_points > 5000: return 300
@@ -115,6 +132,9 @@ def apply_lod_sampling(predict_df: pd.DataFrame, coords: pd.DataFrame,
                        force_full: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame, bool]:
     """
     对超大规模数据集应用 LOD 采样。
+
+    LOD（Level of Detail）只影响交互散点层，不改变用于生成背景饼图的
+    全量数据。这样缩放/悬停更流畅，同时保留空间组成的整体视觉信息。
     """
     n_points = len(predict_df)
     
@@ -133,6 +153,15 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
     高性能饼图背景生成器。
     使用 Matplotlib PatchCollection 批量化渲染数万个微型饼图，生成透明背景的高清 PNG。
     该图片随后会被嵌入 Plotly 面板作为图层背景。
+
+    参数:
+        predict_df: 细胞类型比例矩阵，行为空间位点，列为细胞类型。
+        coords: 与预测矩阵索引对齐的坐标表，需包含 `x` 和 `y`。
+        point_size: 兼容参数；当前半径主要根据空间点间距自适应计算。
+        progress_callback: 可选进度回调，供 Streamlit 进度条更新。
+
+    返回:
+        tuple: `(PIL.Image, (xlim, ylim))`，分别是透明背景图和绘图边界。
     """
     def update_progress(pct, msg):
         """转发进度到外部回调函数。"""
@@ -141,14 +170,15 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
     
     update_progress(0.05, "准备颜色映射...")
     
-    # 准备颜色（聚类配色）
+    # 准备颜色映射。颜色顺序可能基于细胞类型空间相关性聚类，
+    # 让共定位模式相近的细胞类型在图例上更靠近。
     labels = predict_df.columns.tolist()
     color_map = get_color_map_cached(tuple(labels), predict_df)
     colors = [color_map[label] for label in labels]
     
     update_progress(0.1, "计算画布尺寸...")
     
-    # 计算画布尺寸
+    # 计算画布尺寸。保持真实坐标的宽高比，避免组织结构被拉伸。
     x_range = coords['x'].max() - coords['x'].min()
     y_range = coords['y'].max() - coords['y'].min()
     if y_range == 0: y_range = 1
@@ -164,7 +194,8 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
     
     update_progress(0.2, "计算最佳点大小...")
     
-    # 位点间距估计（KNN）
+    # 位点间距估计：取每个点最近邻距离的中位数作为典型 spot 间距，
+    # 再按固定比例设置饼图半径，避免在高密度区域过度重叠。
     from sklearn.neighbors import NearestNeighbors
     coords_array = np.column_stack((coords['x'], coords['y']))
     nbrs = NearestNeighbors(n_neighbors=2).fit(coords_array)
@@ -173,7 +204,8 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
     
     update_progress(0.25, "正在构建图形集合 (PatchCollection)...")
     
-    # 使用 PatchCollection 提升性能
+    # 使用 PatchCollection 提升性能：一次性把所有 Wedge 加入 Axes，
+    # 比逐个调用 ax.add_patch 快很多。
     from matplotlib.patches import Wedge
     from matplotlib.collections import PatchCollection
 
@@ -189,7 +221,8 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
     x_coords = coords['x'].values
     y_coords = coords['y'].values
     
-    # 全局 Top N
+    # 全局 Top N：每个点只绘制占比最高的若干细胞类型。
+    # 这样可以减少扇区数量，也能突出主要组成。
     top_n = TOP_N_CATEGORIES
     total_points = len(predict_df)
     
@@ -204,8 +237,7 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
         dist = predict_values[i]
         xc, yc = x_coords[i], y_coords[i]
         
-        # 计算 Top N
-        # Top N 索引
+        # 计算该位点的 Top N 细胞类型索引。
         if np.all(dist == 0): continue
         
         sorted_indices = np.argsort(dist)[::-1]
@@ -220,7 +252,8 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
         
         if not current_vals: continue
         
-        # 归一化并构建扇形
+        # 对 Top N 重新归一化后构建扇形。这里展示的是 Top N 内部构成，
+        # 不是全量细胞类型的绝对总和。
         total = sum(current_vals)
         # 起始角度（0 度对应 X 轴正向）
         current_angle = 0.0
@@ -244,8 +277,7 @@ def generate_clean_pie_chart(predict_df, coords, point_size=20,
         p = PatchCollection(wedges, match_original=True)
         ax.add_collection(p)
         
-    # 坐标范围与 Plotly 对齐
-    # 增加少量边距避免裁切
+    # 坐标范围与 Plotly 对齐，并增加少量边距避免边缘饼图被裁切。
     padding = x_range * 0.05
     ax.set_xlim(coords['x'].min() - padding, coords['x'].max() + padding)
     ax.set_ylim(coords['y'].min() - padding, coords['y'].max() + padding)
@@ -277,6 +309,13 @@ def get_color_map(labels: List[str], predict_df: Optional[pd.DataFrame] = None) 
     [Co-localization 配色引擎]:
     如果提供了 predict_df，则通过 Ward 凝聚层次聚类分析细胞类型间的空间相关性。
     在色相环 (HSL Cycle) 上为空间分布相近的细胞分配相邻颜色，从而揭示微环境特征。
+
+    参数:
+        labels: 细胞类型名称列表。
+        predict_df: 可选预测矩阵，用于基于空间相关性调整颜色顺序。
+
+    返回:
+        dict: `{细胞类型: 十六进制颜色}`。
     """
     import matplotlib.colors as mcolors
     import colorsys
@@ -286,7 +325,8 @@ def get_color_map(labels: List[str], predict_df: Optional[pd.DataFrame] = None) 
     # 默认按字母序，保证确定性
     sorted_labels = sorted(list(set(labels)))
     
-    # 基于空间相关性的层次聚类排序
+    # 基于空间相关性的层次聚类排序：相似的细胞类型在图例上相邻，
+    # 帮助用户更快识别共定位或互斥模式。
     if predict_df is not None:
         try:
             import scipy.cluster.hierarchy as sch
@@ -297,12 +337,11 @@ def get_color_map(labels: List[str], predict_df: Optional[pd.DataFrame] = None) 
             if len(valid_cols) > 2:
                 data = predict_df[valid_cols]
                 
-                # 2. 计算特征矩阵的转置（行=细胞类型，列=空间点）
-                # 我们要聚类的是"细胞类型"
+                # 2. 计算细胞类型之间的相关性矩阵。聚类对象是“细胞类型”，
+                #    每个类型的特征向量是其在所有空间位点上的比例分布。
                 correlation_matrix = data.corr().fillna(0)
                 
-                # 3. 层次聚类 (Ward's method)
-                # 使用 1 - correlation 作为距离度量
+                # 3. 使用 Ward 方法进行层次聚类，获得稳定且可解释的叶节点顺序。
                 d = sch.distance.pdist(correlation_matrix)
                 linkage = sch.linkage(d, method='ward')
                 
@@ -343,6 +382,9 @@ def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFr
     """
     核心图表插件：空间组分交互散点图 (Tab 1)。
     采用多层渲染技术：底层为 Matplotlib 计算的饼图纹理，顶层为高性能投影交互层。
+
+    返回:
+        go.Figure: 可直接传入 `st.plotly_chart` 的 Plotly 图表对象。
     """
     import plotly.express as px
     import plotly.graph_objects as go
@@ -350,8 +392,7 @@ def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFr
     xlim, ylim = bounds
     plot_df = coords_for_plot.copy()
     
-    # 优化悬停文本生成
-    # 使用 numpy 进行批量处理，避免 pandas 的逐行操作
+    # 优化悬停文本生成：使用 numpy 批量排序，避免 pandas 逐行 apply。
     vals = predict_df.values
     cols = predict_df.columns.tolist()
     
@@ -391,7 +432,7 @@ def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFr
         hovertemplate='%{hovertext}<extra></extra>'
     )
     
-    # 虚拟图例 - 添加所有细胞类型
+    # 虚拟图例：背景饼图不是 Plotly trace，因此需要添加空散点来生成可读图例。
     for cell_type, color in color_map.items():
         fig.add_trace(
             go.Scatter(
@@ -403,7 +444,7 @@ def generate_plotly_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.DataFr
             )
         )
     
-    # 添加背景饼图图片
+    # 添加背景饼图图片，并使用相同坐标边界保证和透明交互层完全对齐。
     if bg_img:
         fig.add_layout_image(
             dict(
@@ -443,6 +484,8 @@ def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.Data
     """
     核心图表插件：优势细胞亚群映射图 (Tab 2)。
     基于 WebGL 渲染，支持位点大小与数据规模的自适应缩放。
+
+    每个点只显示预测占比最高的细胞类型，适合快速观察空间区域的主导亚群。
     """
     import plotly.graph_objects as go
     
@@ -452,8 +495,8 @@ def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.Data
     
     display_df['主要比例'] = predict_df.max(axis=1).values
     
-    # Size calculation - 自适应大小
-    # 启发式公式: 假设画布有效区域约600-800px, 避免重叠
+    # 自适应点大小。启发式公式假设画布有效区域约 600-800px，
+    # 点数越多则点越小，避免大数据集出现严重遮挡。
     n_points = len(predict_df)
     adaptive_size = max(3, (550 / np.sqrt(n_points)))
     adaptive_size = min(15, adaptive_size) # 限制最大值
@@ -472,9 +515,8 @@ def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.Data
         subset = display_df[display_df['主要细胞类型'] == cell_type]
         if len(subset) == 0: continue
             
-        # 优化悬停文本生成
-        # 我们需要将子集索引映射回 predict_df 中的原始整数位置
-        # 或者更简单：为此子集重新计算（现在速度足够快）或使用严格查找
+        # 优化悬停文本生成：按当前细胞类型子集批量计算 Top N，
+        # 避免对全量预测矩阵重复排序。
         
         # 在子集上使用高效处理方法
         subset_indices = subset.index
@@ -486,7 +528,7 @@ def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.Data
         
         hover_texts = []
         for i, idx_val in enumerate(subset_indices):
-            major_type = cell_type # Known from loop
+            major_type = cell_type  # 当前循环已确定主导细胞类型。
             major_prop = subset.loc[idx_val, '主要比例']
             
             text = f"<b>位置 {idx_val}</b><br>主要类型: {major_type} ({major_prop:.2%})<br>"
@@ -530,7 +572,12 @@ def generate_dominant_scatter(coords_for_plot: pd.DataFrame, predict_df: pd.Data
 
 
 def generate_proportion_bar(predict_df: pd.DataFrame) -> go.Figure:
-    """为 Tab 3 生成柱状图"""
+    """
+    为 Tab 3 生成各细胞类型平均占比柱状图。
+
+    返回:
+        go.Figure: 横向柱状图，按平均占比升序排列。
+    """
     import plotly.express as px
     mean_proportions = predict_df.mean().sort_values(ascending=True)
     fig = px.bar(
@@ -542,7 +589,7 @@ def generate_proportion_bar(predict_df: pd.DataFrame) -> go.Figure:
         color_continuous_scale='Blues',
         title="各细胞类型平均占比"
     )
-    # 根据条目数量动态调整高度，防止拥挤
+    # 根据条目数量动态调整高度，防止细胞类型较多时标签拥挤。
     dynamic_height = max(500, len(mean_proportions) * 25)
     
     fig.update_layout(
@@ -563,7 +610,12 @@ def generate_proportion_bar(predict_df: pd.DataFrame) -> go.Figure:
 
 def generate_heatmap(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame, 
                     selected_type: str) -> go.Figure:
-    """为 Tab 4 生成热图"""
+    """
+    为 Tab 4 生成单个细胞类型的空间热图。
+
+    参数:
+        selected_type: 用户选中的细胞类型列名。
+    """
     import plotly.graph_objects as go
     
     display_df = coords_for_plot.copy()
@@ -573,7 +625,7 @@ def generate_heatmap(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame,
                   for idx, val in zip(display_df.index, display_df['proportion'])]
 
     
-    # 自适应大小
+    # 自适应点大小与优势亚群图保持一致，保证不同 Tab 的空间尺度感接近。
     n_points = len(predict_df)
     adaptive_size = max(3, (550 / np.sqrt(n_points)))
     adaptive_size = min(15, adaptive_size)
@@ -613,7 +665,11 @@ def generate_heatmap(coords_for_plot: pd.DataFrame, predict_df: pd.DataFrame,
     return fig
 
 def save_pie_chart_background(img: Image.Image, xlim: float, ylim: float, result_dir: str) -> None:
-    """将实时渲染的背景图及其元数据持久化至磁盘，加速后续加载。"""
+    """
+    将实时渲染的背景图及其元数据持久化至磁盘，加速后续加载。
+
+    元数据保存坐标边界，确保下次读取图片时仍能与 Plotly 坐标系对齐。
+    """
     import os
     import json
     
@@ -628,7 +684,7 @@ def save_pie_chart_background(img: Image.Image, xlim: float, ylim: float, result
          logger.warning("无法保存背景缓存", exc_info=exc)
 
 def open_folder_dialog() -> Optional[str]:
-    """调取操作系统原生文件夹选择对话框 (仅限本地环境)。"""
+    """调取操作系统原生文件夹选择对话框（仅限本地环境）。"""
     try:
         import tkinter as tk
         from tkinter import filedialog
@@ -651,13 +707,15 @@ def generate_and_save_interactive_assets(predict_df, coordinates, output_dir):
     """
     生成并保存交互式可视化资源 (Top 4 饼图背景)。
     自动处理坐标映射并保存为 interactive_pie_background.png。
+
+    该函数主要供训练结束后的离线脚本调用，提前生成背景图可以显著减少
+    Streamlit 首次打开某个结果目录时的等待时间。
     """
     import os
     
     logger.info("正在生成交互式可视化背景图 Top=%s", TOP_N_CATEGORIES)
     
-    # 确保坐标列名匹配
-    # generate_clean_pie_chart_top_n 期望 coordinates 有 'x', 'y' 列
+    # 确保坐标列名匹配。生成函数期望 coordinates 有 `x`、`y` 两列。
     coords = coordinates.copy()
     if 'coor_X' in coords.columns:
         coords = coords.rename(columns={'coor_X': 'x', 'coor_Y': 'y'})
@@ -665,7 +723,7 @@ def generate_and_save_interactive_assets(predict_df, coordinates, output_dir):
         # 假设前两列是 x, y
         coords.columns = ['x', 'y']
         
-    # 确保索引对齐
+    # 确保索引对齐，防止预测比例与坐标错位。
     common_index = predict_df.index.intersection(coords.index)
     if len(common_index) < len(predict_df):
         logger.warning("坐标与预测结果索引不完全匹配 交集=%s", len(common_index))
@@ -673,12 +731,11 @@ def generate_and_save_interactive_assets(predict_df, coordinates, output_dir):
     predict_df = predict_df.loc[common_index]
     coords = coords.loc[common_index]
 
-    # 生成图片
-    # point_size=None 让其自动计算
+    # 生成图片。point_size=None 表示使用坐标间距自适应半径。
     try:
         img, (xlim, ylim) = generate_clean_pie_chart(predict_df, coords, point_size=None)
         
-        # 保存
+        # 保存到结果目录，供 Streamlit 后续直接读取。
         if not os.path.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
             
@@ -690,6 +747,8 @@ def generate_and_save_interactive_assets(predict_df, coordinates, output_dir):
 def handle_visualization_generation(paths):
     """
     可视化生成流程的单一入口函数：读取数据 -> 生成背景 -> 保存资源。
+
+    训练脚本在模型输出后调用该函数，做到“训练结果可直接被 Web 页面加载”。
     """
     import os
     import pandas as pd
@@ -701,12 +760,12 @@ def handle_visualization_generation(paths):
     
     if os.path.exists(res_path) and os.path.exists(coor_path):
         try:
-            # 读取预测结果和坐标
+            # 读取预测结果和坐标。
             pred_df = pd.read_csv(res_path, index_col=0)
-            # 处理坐标文件读取，有的包含表头有的不包含，这里假设标准格式
+            # 坐标文件在项目内统一为标准 CSV，这里按首列索引读取。
             coord_df = pd.read_csv(coor_path, index_col=0)
             
-            # 调用生成函数
+            # 调用生成函数并写入 output_path。
             generate_and_save_interactive_assets(pred_df, coord_df, paths['output_path'])
             logger.info("可视化资源生成完成")
         except Exception as exc:
@@ -726,6 +785,9 @@ def get_or_generate_pie_background(predict_df: pd.DataFrame, coords: pd.DataFram
     1. 扫描目标目录是否存在有效的预计算资产 (.png & .json)。
     2. 若命中，执行毫秒级磁盘读取。
     3. 若未命中，则唤起并行渲染流水线生成新资产，并视环境执行自动保存行为。
+
+    返回:
+        tuple: `(bg_img, (xlim, ylim))`，用于嵌入 Plotly 背景图层。
     """
     import json
     from PIL import Image
@@ -734,7 +796,7 @@ def get_or_generate_pie_background(predict_df: pd.DataFrame, coords: pd.DataFram
     precomputed_img_path = os.path.join(result_dir, "interactive_pie_background.png")
     precomputed_meta_path = os.path.join(result_dir, "interactive_pie_bounds.json")
     
-    # 1. 尝试从磁盘读取 (仅对本地数据集有效)
+    # 1. 尝试从磁盘读取（仅对本地数据集有效）。
     if result_dir != "__UPLOADED__" and os.path.exists(precomputed_img_path) and os.path.exists(precomputed_meta_path):
         try:
             bg_img = Image.open(precomputed_img_path)
@@ -744,13 +806,13 @@ def get_or_generate_pie_background(predict_df: pd.DataFrame, coords: pd.DataFram
         except Exception as exc:
             logger.warning("读取缓存背景失败，将重新生成", exc_info=exc)
             
-    # 2. 现场生成
+    # 2. 未命中缓存时现场生成。
     bg_img, (xlim, ylim) = generate_clean_pie_chart(
         predict_df, coords, None, 
         progress_callback=progress_callback
     )
     
-    # 3. 保存到磁盘 (仅本地数据集)
+    # 3. 保存到磁盘（仅本地数据集），上传数据不能写入固定结果目录。
     if result_dir != "__UPLOADED__":
         save_pie_chart_background(bg_img, xlim, ylim, result_dir)
         

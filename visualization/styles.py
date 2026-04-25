@@ -1,27 +1,42 @@
+# -*- coding: utf-8 -*-
+"""
+DeconvGNN-Vis 样式与首页 HTML 生成模块。
 
+该文件集中维护 Streamlit 页面注入的 CSS，以及无数据状态下的落地页 HTML。
+把样式从 `app.py` 中拆出，可以让页面逻辑与视觉实现解耦，后续调整主题、
+动画或品牌元素时不影响数据加载与图表逻辑。
+"""
 import streamlit as st
 import os
 import base64
 
 def _get_stardust_b64():
-    """读取本地纹理图片并转换为 Base64，如果不存在则回退到 URL"""
-    # 优先读取本地纹理资源
+    """
+    读取本地星尘纹理并转换为 Base64 URL。
+
+    本地资源可避免部署环境访问外链失败；若资源缺失，则回退到公共纹理 URL，
+    保证页面仍能正常渲染。
+    """
+    # 优先读取本地纹理资源，减少外部网络依赖。
     path = os.path.join(os.path.dirname(__file__), "assets", "stardust.png")
     if os.path.exists(path):
         with open(path, "rb") as f:
             return f"data:image/png;base64,{base64.b64encode(f.read()).decode()}"
-    # 本地资源缺失时回退到在线纹理
+    # 本地资源缺失时回退到在线纹理。
     return "https://www.transparenttextures.com/patterns/stardust.png"
 
 def get_css():
     """
-    汇集应用自定义样式表 - 升级至 "Future Lab" 视觉语言 (2025 Edition)。
-    包含动态极光背景、全域玻璃拟态、全息悬停效果及影院级动效。
+    汇集应用自定义样式表。
+
+    样式包含全局字体、暗色背景、侧边栏布局、按钮、指标卡片、Plotly 容器、
+    首页动画等 Streamlit 覆盖规则。返回值会由 `inject_custom_css` 注入页面。
     """
     css_template = """
     <style>
         /* ==========================================================================
-           0. 全局设置 & 字体引入 (Global Settings & Fonts)
+           0. 全局设置与字体引入
+           统一字体、颜色变量和玻璃态基础参数，后续组件尽量复用变量。
            ========================================================================== */
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
         
@@ -40,16 +55,16 @@ def get_css():
             scroll-behavior: smooth;
         }
 
-        /* 隐藏 Streamlit 默认装饰 */
+        /* 隐藏 Streamlit 默认装饰，让页面更像独立应用而不是脚本面板。 */
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
         div[data-testid="stDecoration"] { display: none; }
 
         /* ==========================================================================
-           1. 布局重构 (Layout Overrides)
+           1. 布局重构
            ========================================================================== */
         
-        /* 1.1 主内容容器：沉浸式顶部 + 满宽布局 */
+        /* 1.1 主内容容器：沉浸式顶部与满宽布局。 */
         .stMainBlockContainer {
             padding-top: 3rem !important;   /* 顶部保留适度留白 */
             padding-bottom: 2rem !important;
@@ -59,7 +74,7 @@ def get_css():
             padding-right: 0.5rem !important;
         }
 
-        /* 1.2 顶部 Header：完全透明 */
+        /* 1.2 顶部 Header：完全透明，避免遮挡首页视觉背景。 */
         header {
             background: transparent !important;
             backdrop-filter: none !important;
@@ -73,7 +88,7 @@ def get_css():
             pointer-events: none !important; /* 让点击穿透 */
         }
         
-        /* 恢复 Header 内按钮交互 */
+        /* 恢复 Header 内按钮交互。 */
         header[data-testid="stHeader"] button, 
         [data-testid="stSidebarCollapsedControl"],
         .stDeployButton {
@@ -82,10 +97,10 @@ def get_css():
         }
 
         /* ==========================================================================
-           2. 侧边栏体系 (Sidebar System - Invisible & Locked)
+           2. 侧边栏体系
            ========================================================================== */
         
-        /* 2.1 样式重置：完全透明，无边框，无阴影 */
+        /* 2.1 样式重置：完全透明，无边框、无阴影，与主背景融合。 */
         section[data-testid="stSidebar"],
         section[data-testid="stSidebar"] > div {
             background-color: transparent !important;
@@ -95,7 +110,7 @@ def get_css():
             box-shadow: none !important;
         }
 
-        /* 2.2 尺寸锁定：限制宽度为 300px，收起时归零 */
+        /* 2.2 尺寸锁定：限制宽度为 300px，收起时归零。 */
         section[data-testid="stSidebar"][aria-expanded="true"] {
             min-width: 300px !important;
             max-width: 300px !important;
@@ -108,15 +123,15 @@ def get_css():
              width: 0 !important;
         }
 
-        /* 2.3 交互限制：禁止拖拽，隐藏手柄 */
+        /* 2.3 交互限制：禁止拖拽，避免 Streamlit 默认侧栏宽度破坏布局。 */
         [data-testid="stSidebarResizeHandle"] {
             display: none !important;
             visibility: hidden !important;
             pointer-events: none !important;
         }
 
-        /* 2.4 光标管理：全局默认，仅组件可点 */
-        /* 暴力覆盖侧边栏所有区域的光标为默认 */
+        /* 2.4 光标管理：全局默认，仅组件可点。 */
+        /* 覆盖侧边栏所有区域的光标为默认，避免非交互区域误导用户。 */
         section[data-testid="stSidebar"],
         section[data-testid="stSidebar"] *,
         section[data-testid="stSidebar"]::before,
@@ -125,7 +140,7 @@ def get_css():
             resize: none !important;
         }
 
-        /* 恢复交互组件的手型光标 */
+        /* 恢复交互组件的手型光标。 */
         section[data-testid="stSidebar"] button,
         section[data-testid="stSidebar"] a,
         section[data-testid="stSidebar"] input,
@@ -134,7 +149,7 @@ def get_css():
             cursor: pointer !important;
         }
 
-        /* 侧边栏标题 - 霓虹流光特效 */
+        /* 侧边栏标题：霓虹流光特效。 */
         .main-header {
             font-family: 'Outfit', sans-serif;
             font-size: 1.8rem !important;
@@ -150,7 +165,7 @@ def get_css():
         }
 
         /* ==========================================================================
-           3. 全局背景 (Background Effects)
+           3. 全局背景
            ========================================================================== */
         .stApp {
             background-color: var(--bg-dark);
@@ -163,7 +178,7 @@ def get_css():
             background-size: 100% 100%;
         }
         
-        /* 叠加星尘纹理 */
+        /* 叠加星尘纹理。 */
         .stApp::before {
             content: "";
             position: fixed;
@@ -790,15 +805,23 @@ def get_css():
 def inject_custom_css():
     """
     将封装的 CSS 样式表注入当前 Streamlit 会话上下文。
+
+    Streamlit 不提供全局主题运行时 API，因此这里通过 `st.markdown`
+    注入 `<style>` 标签统一覆盖组件样式。
     """
     st.markdown(get_css(), unsafe_allow_html=True)
 
 def get_landing_page_html(banner_src):
     """
     构造系统初始化引导页面的完整 HTML 结构（含内嵌 CSS）。
-    用于 st.components.v1.html() 渲染。
+
+    参数:
+        banner_src: Base64 图片 URL 或普通图片 URL，用作首页主视觉背景。
+
+    返回:
+        str: 可传入 `st.components.v1.html()` 的 HTML 字符串。
     """
-    # 落地页专用 CSS
+    # 落地页专用 CSS。首页由 components.html 渲染，不直接继承外层 Streamlit DOM。
     landing_css = """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap');
@@ -1238,7 +1261,7 @@ def get_landing_page_html(banner_src):
         }
     </style>
     """
-    # 技术栈图标 (使用 CDN 图标)
+    # 技术栈图标使用 CDN 图标；它们仅影响首页装饰，加载失败不影响核心功能。
     tech_stack = [
         ("Streamlit", "https://streamlit.io/images/brand/streamlit-mark-color.svg"),
         ("PyTorch", "https://pytorch.org/assets/images/pytorch-logo.png"),
@@ -1255,9 +1278,9 @@ def get_landing_page_html(banner_src):
         ("NetworkX", "https://networkx.org/_static/networkx_logo.svg"),
     ]
     
-    # 生成技术栈 HTML (复制4份实现无缝循环)
+    # 生成技术栈 HTML。复制 4 份用于无缝滚动，避免动画末尾出现空白断档。
     tech_items_html = ""
-    for name, icon_url in tech_stack * 4:  # 复制4份确保无缝
+    for name, icon_url in tech_stack * 4:  # 复制 4 份确保无缝循环。
         tech_items_html += f'''
             <div class="tech-item">
                 <img src="{icon_url}" alt="{name}" class="tech-icon">

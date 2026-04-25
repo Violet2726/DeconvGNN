@@ -6,7 +6,7 @@ echo [INFO] ==========================================
 echo [INFO] 启动 STdGCN 演示
 echo [INFO] ==========================================
 
-REM 设置本地 Python 路径
+REM 使用项目内置的 _miniconda Python，避免受到系统 PATH 中其他 Python 环境影响。
 set "PYTHON_EXE=%~dp0_miniconda\python.exe"
 
 if not exist "%PYTHON_EXE%" (

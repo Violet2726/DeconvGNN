@@ -1,6 +1,12 @@
 #!/usr/bin/env python
 # coding: utf-8
+"""
+Windows 环境下的 STdGCN 训练示例脚本。
 
+与 `Tutorial.py` 相比，本脚本保留 `freeze_support()`，便于 Windows 在涉及
+多进程或打包执行时正常启动。参数含义与主教程一致，默认路径指向示例
+`./data/sc_data`、`./data/ST_data` 和 `./output`。
+"""
 
 import os
 import sys
@@ -12,22 +18,22 @@ sys.path.append(os.getcwd())
 from core.STdGCN import run_STdGCN
 
 '''
-This module is used to provide the path of the loading data and saving data.
+路径配置说明。
 
-Parameters:
-sc_path: The path for loading single cell reference data.
-ST_path: The path for loading spatial transcriptomics data.
-output_path: The path for saving output files.
+参数:
+sc_path: 单细胞参考数据所在目录。
+ST_path: 空间转录组数据所在目录。
+output_path: 训练输出文件保存目录。
 
-The relevant file name and data format for loading:
-sc_data.tsv: The expression matrix of the single cell reference data with cells as rows and genes as columns. This file should be saved in "sc_path".
-sc_label.tsv: The cell-type annotation of sincle cell data. The table should have two columns: The cell barcode/name and the cell-type annotation information.
-            This file should be saved in "sc_path".
-ST_data.tsv: The expression matrix of the spatial transcriptomics data with spots as rows and genes as columns. This file should be saved in "ST_path".
-coordinates.csv: The coordinates of the spatial transcriptomics data. The table should have three columns: Spot barcode/name, X axis (column name 'x'), and Y axis (column name 'y').
-            This file should be saved in "ST_path".
-marker_genes.tsv [optional]: The gene list used to run STdGCN. Each row is a gene and no table header is permitted. This file should be saved in "sc_path".
-ST_ground_truth.tsv [optional]: The ground truth of ST data. The data should be transformed into the cell type proportions. This file should be saved in "ST_path".
+输入文件约定:
+sc_data.tsv: 单细胞参考表达矩阵，行是细胞，列是基因，应保存在 sc_path。
+sc_label.tsv: 单细胞类型标签表，至少包含细胞条形码/名称和 cell_type 两列，
+            应保存在 sc_path。
+ST_data.tsv: 空间转录组表达矩阵，行是空间斑点，列是基因，应保存在 ST_path。
+coordinates.csv: 空间斑点坐标表，包含斑点条形码/名称、x 坐标和 y 坐标，
+            应保存在 ST_path。
+marker_genes.tsv [可选]: 外部标记基因列表，每行一个基因且不包含表头，应保存在 sc_path。
+ST_ground_truth.tsv [可选]: 空间数据真实细胞类型比例，用于评估测试损失，应保存在 ST_path。
 '''
 paths = {
     'sc_path': './data/sc_data',
@@ -36,30 +42,26 @@ paths = {
 }
 
 '''
-This module is used to preprocess the input data and identify marker genes [optional].
+标记基因筛选参数。
 
-Parameters:
-'preprocess': [bool]. Select whether the input expression data needs to be preprocessed. This step includes normalization, logarithmization, selecting highly variable genes, 
-                    regressing out mitochondrial genes, and scaling data.
-'normalize': [bool]. When 'preprocess'=True, select whether you need to normalize each cell/spot by total counts = 10,000, so that every cell/spot has the same total 
-                    count after normalization.
-'log': [bool]. When 'preprocess'=True, select whether you need to logarithmize (X=log(X+1)) the expression matrix.
-'highly_variable_genes': [bool]. When 'preprocess'=True, select whether you need to filter the highly variable genes.
-'highly_variable_gene_num': [int or None]. When 'preprocess'=True and 'highly_variable_genes'=True, select the number of highly-variable genes to keep.
-'regress_out': [bool]. When 'preprocess'=True, select whether you need to regress out mitochondrial genes.
-'scale': [bool]. When 'preprocess'=True, select whether you need to scale each gene to unit variance and zero mean.
-'PCA_components': [int]. Number of principal components to compute for principal component analysis (PCA).
-'marker_gene_method': ['logreg', 'wilcoxon']. We used "scanpy.tl.rank_genes_groups" (https://scanpy.readthedocs.io/en/stable/generated/scanpy.tl.rank_genes_groups.html)
-                    to identify cell type marker genes. For marker gene selection, STdGCN provides two methods, 'wilcoxon' (Wilcoxon rank-sum) and 'logreg' (uses 
-                    logistic regression). 
-'top_gene_per_type': [int]. The number of genes for each cell type that can be used to train STdGCN.
-'filter_wilcoxon_marker_genes': [bool]. When 'marker_gene_method'='wilcoxon', select whether you need additional steps for gene filtering.
-'pvals_adj_threshold': [float or None]. When 'marker_gene_method'='wilcoxon' and 'rank_gene_filter'=True, only genes with corrected p-values < 'pvals_adj_threshold' were kept.
-'log_fold_change_threshold': [float or None]. When 'marker_gene_method'='wilcoxon' and 'rank_gene_filter'=True, only genes with log fold change > 'log_fold_change_threshold' were kept.
-'min_within_group_fraction_threshold': [float or None]. When 'marker_gene_method'='wilcoxon' and 'rank_gene_filter'=True, only genes expressed with fraction at least
-                    'min_within_group_fraction_threshold' in the cell type were kept.
-'max_between_group_fraction_threshold': [float or None]. When 'marker_gene_method'='wilcoxon' and 'rank_gene_filter'=True, only genes expressed with fraction at most 
-                    'max_between_group_fraction_threshold' in the union of the rest of cell types were kept.
+参数:
+'preprocess': [bool]. 是否在筛选标记基因前预处理表达矩阵，流程包括归一化、对数化、
+                    高变基因筛选、回归线粒体基因影响和缩放。
+'normalize': [bool]. 当 preprocess=True 时，是否把每个细胞/斑点的总计数归一化为 10,000。
+'log': [bool]. 当 preprocess=True 时，是否执行 log(X+1) 对数变换。
+'highly_variable_genes': [bool]. 当 preprocess=True 时，是否筛选高变基因。
+'highly_variable_gene_num': [int 或 None]. 高变基因筛选开启时保留的基因数量。
+'regress_out': [bool]. 是否回归线粒体基因等协变量。
+'scale': [bool]. 是否将每个基因缩放到零均值、单位方差。
+'PCA_components': [int]. PCA 主成分数量。
+'marker_gene_method': ['logreg', 'wilcoxon']. 使用 scanpy.tl.rank_genes_groups
+                    识别细胞类型标记基因；支持 Wilcoxon 秩和检验和逻辑回归。
+'top_gene_per_type': [int]. 每个细胞类型最多用于训练的标记基因数量。
+'filter_wilcoxon_marker_genes': [bool]. 使用 wilcoxon 时是否额外按统计阈值过滤。
+'pvals_adj_threshold': [float 或 None]. 校正后 p 值阈值。
+'log_fold_change_threshold': [float 或 None]. log fold change 阈值。
+'min_within_group_fraction_threshold': [float 或 None]. 组内表达比例下限。
+'max_between_group_fraction_threshold': [float 或 None]. 其他细胞类型联合表达比例上限。
 '''
 find_marker_genes_paras = {
     'preprocess': True,
@@ -79,15 +81,16 @@ find_marker_genes_paras = {
 }
 
 '''
-This module is used to simulate pseudo-spots.
+伪斑点模拟参数。
 
-Parameters:
-'spot_num': [int]. The number of pseudo-spots.
-'min_cell_num_in_spot': [int]. The minimum number of cells in a pseudo-spot.
-'max_cell_num_in_spot': [int]. The maximum number of cells in a pseudo-spot.
-'generation_method': ['cell' or 'celltype']. STdGCN provides two pseudo-spot simulation methods. When 'generation_method'='cell', each cell is equally selected. When 
-                    'generation_method'='celltype', each cell type is equally selected. See manuscript for more details.
-'max_cell_types_in_spot': [int]. When 'generation_method'='celltype', choose the maximum number of cell types in a pseudo-spot.
+参数:
+'spot_num': [int]. 需要生成的伪斑点数量。
+'min_cell_num_in_spot': [int]. 单个伪斑点包含的最少细胞数。
+'max_cell_num_in_spot': [int]. 单个伪斑点包含的最多细胞数。
+'generation_method': ['cell' 或 'celltype']. 伪斑点抽样策略：
+                    'cell' 表示所有细胞等概率抽样；
+                    'celltype' 表示先抽细胞类型，再从对应类型中抽细胞。
+'max_cell_types_in_spot': [int]. 使用 'celltype' 策略时，单个伪斑点最多包含的细胞类型数。
 '''
 pseudo_spot_simulation_paras = {
     'spot_num': 3000,
@@ -98,12 +101,12 @@ pseudo_spot_simulation_paras = {
 }
 
 '''
-This module is used for real- and pseudo- spots normalization.
+真实斑点与伪斑点共用的表达预处理参数。
 
-Parameters:
-'normalize': [bool]. Select whether you need to normalize each cell/spot by total counts = 10,000, so that every cell/spot has the same total count after normalization.
-'log': [bool]. Select whether you need to logarithmize (X=log(X+1)) the expression matrix.
-'scale': [bool]. Select whether you need to scale each gene to unit variance and zero mean.
+参数:
+'normalize': [bool]. 是否把每个细胞/斑点的总计数归一化为 10,000。
+'log': [bool]. 是否执行 log(X+1) 对数变换。
+'scale': [bool]. 是否按基因缩放到零均值、单位方差。
 '''
 data_normalization_paras = {
     'normalize': True,
@@ -112,16 +115,14 @@ data_normalization_paras = {
 }
 
 '''
-This module is used to integrate the normalized real- and pseudo- spots together to construct the real-to-pseudo-spot link graph.
+用于构建表达邻接图的数据整合参数。
 
-Parameters:
-'batch_removal_method': ['mnn', 'scanorama', 'combat', None]. Considering batch effects, STdGCN provides four integration methods: mnn (mnnpy, DOI:10.1038/nbt.4091),
-                    scanorama (Scanorama, DOI: 10.1038/s41587-019-0113-3), combat (Combat, DOI: 10.1093/biostatistics/kxj037), None (concatenation with no batch removal).
-'dimensionality_reduction_method': ['PCA', 'autoencoder', 'nmf', None]. When 'batch_removal_method' is not 'scanorama', select whether the data needs dimensionality reduction, and which
-                    dimensionality reduction method is applied.
-'dim': [int]. When 'batch_removal_method'='scanorama', select the dimension for this method. When 'batch_removal_method' is not 'scanorama' and 'dimensionality_reduction_method' is
-                    not None, select the dimension of the dimensionality reduction.
-'scale': [bool]. When 'batch_removal_method' is not 'scanorama', select whether you need to scale each gene to unit variance and zero mean.
+参数:
+'batch_removal_method': ['mnn', 'scanorama', 'combat', None]. 批次效应校正方法：
+                    mnn、scanorama、combat，或 None（直接拼接，不做批次校正）。
+'dimensionality_reduction_method': ['PCA', 'autoencoder', 'nmf', None]. 非 scanorama 路径下使用的降维方法。
+'dim': [int]. 整合后特征维度。
+'scale': [bool]. 是否对整合后的表达矩阵或低维嵌入进行缩放。
 '''
 integration_for_adj_paras = {
     'batch_removal_method': None,
@@ -131,16 +132,16 @@ integration_for_adj_paras = {
 }
 
 '''
-The module is used to construct the adjacency matrix of the expression graph, which contains three subgraphs: a real-to-pseudo-spot graph, a pseudo-spots internal graph, 
-and a real-spots internal graph.
+表达图邻接矩阵参数。
 
-Parameters:
-'find_neighbor_method' ['MNN', 'KNN']. STdGCN provides two methods for link graph construction, KNN (K-nearest neighbors) and MNN (mutual nearest neighbors, DOI: 10.1038/nbt.4091).
-'dist_method': ['euclidean', 'cosine']. The metrics used for computing paired distances between spots.
-'corr_dist_neighbors': [int]. The number of nearest neighbors.
-'PCA_dimensionality_reduction': [bool]. For pseudo-spots internal graph and real-spots internal graph construction, select if the data needs to use PCA dimensionality reduction before
-                    computing paired distances between spots.
-'dim': [int]. When 'PCA_dimensionality_reduction'=True, select the dimension of the PCA.
+表达图包含三类子图：真实斑点到伪斑点的跨域图、伪斑点内部图、真实斑点内部图。
+
+参数:
+'find_neighbor_method' ['MNN', 'KNN']. 近邻建图方法，KNN 为 K 近邻，MNN 为互最近邻。
+'dist_method': ['euclidean', 'cosine']. 计算斑点间表达距离的度量。
+'corr_dist_neighbors': [int]. 近邻数量。
+'PCA_dimensionality_reduction': [bool]. 构建域内表达图前是否先做 PCA 降维。
+'dim': [int]. PCA 降维维度。
 '''
 inter_exp_adj_paras = {
     'find_neighbor_method': 'MNN',
@@ -163,11 +164,11 @@ pseudo_intra_exp_adj_paras = {
 }
 
 '''
-The module is used to construct the adjacency matrix of the spatial graph.
+空间图邻接矩阵参数。
 
-Parameters:
-'space_dist_threshold': [float or None]. Only the distance between two spots smaller than 'space_dist_threshold' can be linked.
-'link_method' ['soft', 'hard']. If spot i and j linked, A(i,j)=1 if 'link_method'='hard', while A(i,j)=1/distance(i,j) if 'link_method'='soft'. See manuscript for more details.
+参数:
+'space_dist_threshold': [float 或 None]. 仅当两个斑点距离小于该阈值时才连边。
+'link_method' ['soft', 'hard']. hard 表示边权为 1；soft 表示边权为 1/distance。
 '''
 spatial_adj_paras = {
     'link_method': 'soft',
@@ -175,16 +176,15 @@ spatial_adj_paras = {
 }
 
 '''
-This module is used to integrate the normalized real- and pseudo- spots as the input feature for STdGCN.
+GNN 输入特征整合参数。
 
-Parameters:
-'batch_removal_method': ['mnn', 'scanorama', 'combat', None]. Considering batch effects, STdGCN provides four integration methods: mnn (mnnpy, DOI:10.1038/nbt.4091),
-                    scanorama (Scanorama, DOI: 10.1038/s41587-019-0113-3), combat (Combat, DOI: 10.1093/biostatistics/kxj037), None (concatenation with no batch removal).
-'dimensionality_reduction_method': ['PCA', 'autoencoder', 'nmf', None]. When 'batch_removal_method' is not 'scanorama', select whether the data needs dimensionality reduction, and which
-                    dimensionality reduction method is applied.
-'dim': [int]. When 'batch_removal_method'='scanorama', select the dimension for this method. When 'batch_removal_method' is not 'scanorama' and 'dimensionality_reduction_method' is
-                    not None, select the dimension of the dimensionality reduction.
-'scale': [bool]. When 'batch_removal_method' is not 'scanorama', select whether you need to scale each gene to unit variance and zero mean.
+该部分与“建图前整合”相互独立：前者服务邻接关系构建，当前参数服务模型输入特征。
+
+参数:
+'batch_removal_method': ['mnn', 'scanorama', 'combat', None]. 批次效应校正方法。
+'dimensionality_reduction_method': ['PCA', 'autoencoder', 'nmf', None]. 降维方法。
+'dim': [int]. 输出特征维度。
+'scale': [bool]. 是否对特征进行缩放。
 '''
 integration_for_feature_paras = {
     'batch_removal_method': None,
@@ -194,23 +194,24 @@ integration_for_feature_paras = {
 }
 
 '''
-This module is used for setting the deep learning parameters for STdGCN.
+STdGCN 深度学习训练参数。
 
-Parameters:
-'epoch_n': [int]. The maximum number of epochs.
-'dim': [int]. The dimension of the hidden layers.
-'common_hid_layers_num': [int]. The number of GCN layers = 'common_hid_layers_num'+1.
-'fcnn_hid_layers_num': [int]. The number of fully connected neural network layers = 'fcnn_hid_layers_num'+2.
-'dropout': [float]. The probability of an element to be zeroed.
-'learning_rate_SGD': [float]. Initial learning rate.
-'weight_decay_SGD': [float]. L2 penalty.
-'momentum': [float]. Momentum factor.
-'dampening': [float]. Dampening for momentum.
-'nesterov': [bool]. Enables Nesterov momentum.
-'early_stopping_patience': [int]. Early stopping epochs.
-'clip_grad_max_norm': [float]. Clips gradient norm of an iterable of parameters.
-#'LambdaLR_scheduler_coefficient': [float]. The coefficent of the LambdaLR scheduler fucntion:  lr(epoch) = [LambdaLR_scheduler_coefficient] ^ epoch_n × learning_rate_SGD. 
-'print_loss_epoch_step': [int]. Print the loss value at every 'print_epoch_step' epoch.
+参数:
+'epoch_n': [int]. 最大训练轮数。
+'dim': [int]. 隐藏层维度。
+'common_hid_layers_num': [int]. 图卷积隐藏层数量，实际 GCN 层数为 common_hid_layers_num + 1。
+'fcnn_hid_layers_num': [int]. 全连接隐藏层数量，实际输出头层数为 fcnn_hid_layers_num + 2。
+'dropout': [float]. Dropout 概率。
+'learning_rate_SGD': [float]. SGD 初始学习率。
+'weight_decay_SGD': [float]. L2 正则化系数。
+'momentum': [float]. 动量系数。
+'dampening': [float]. 动量阻尼。
+'nesterov': [bool]. 是否启用 Nesterov 动量。
+'early_stopping_patience': [int]. 验证损失连续未改善时的早停耐心轮数。
+'clip_grad_max_norm': [float]. 梯度裁剪最大范数。
+#'LambdaLR_scheduler_coefficient': [float]. LambdaLR 调度器系数:
+#                    lr(epoch) = LambdaLR_scheduler_coefficient ^ epoch_n * learning_rate_SGD。
+'print_loss_epoch_step': [int]. 每隔多少轮打印一次损失。
 '''
 GCN_paras = {
     'epoch_n': 3000,
@@ -229,21 +230,18 @@ GCN_paras = {
 }
 
 '''
-## run STdGCN
+运行 STdGCN。
 
-Parameters
-'load_test_groundtruth': [bool]. Select whether you need to upload the ground truth file (ST_ground_truth.tsv) of the spatial transcriptomics data to track the performance of STdGCN.
-'use_marker_genes': [bool]. Select whether you need the gene selection process before running STdGCN. Otherwise use common genes from single cell and spatial transcriptomics data.
-'external_genes': [bool]. When "use_marker_genes"=True, you can upload your specified gene list (marker_genes.tsv) to run STdGCN.
-'generate_new_pseudo_spots': [bool]. STdGCN will save the simulated pseudo-spots to "pseudo_ST.pkl". If you want to run multiple deconvolutions with the same single cell reference data,
-                    you don't need to simulate new pseudo-spots and set 'generate_new_pseudo_spots'=False. When 'generate_new_pseudo_spots'=False, you need to pre-move the "pseudo_ST.pkl" 
-                    to the 'output_path' so that STdGCN can directly load the pre-simulated pseudo-spots.
-'fraction_pie_plot': [bool]. Select whether you need to draw the pie plot of the predicted results. Based on our experience, we do not recommend to draw the pie plot when the predicted
-                    spot number is very large. For 1,000 spots, the plotting time is less than 2 minutes; for 2,000 spots, the plotting time is about 10 minutes; for 3,000 spots, it takes
-                    about 30 minutes.
-'cell_type_distribution_plot': [bool]. Select whether you need to draw the scatter plot of the predicted results for each cell type.
-'n_jobs': [int]. Set the number of threads used for intraop parallelism on CPU. 'n_jobs=-1' represents using all CPUs.
-'GCN_device': ['GPU', 'CPU']. Select the device used to run GCN networks. 
+参数:
+'load_test_groundtruth': [bool]. 是否读取 ST_ground_truth.tsv 以跟踪测试集损失。
+'use_marker_genes': [bool]. 是否在训练前筛选标记基因；否则使用单细胞和空间数据共同基因。
+'external_genes': [bool]. use_marker_genes=True 时，是否使用外部 marker_genes.tsv。
+'generate_new_pseudo_spots': [bool]. 是否重新生成伪斑点并保存为 pseudo_ST.pkl；
+                    若设为 False，需要预先把 pseudo_ST.pkl 放到 output_path。
+'fraction_pie_plot': [bool]. 是否生成预测结果饼图。大数据集绘制耗时较长，通常建议使用 Web 可视化资源。
+'cell_type_distribution_plot': [bool]. 是否为每个细胞类型绘制预测分布散点图。
+'n_jobs': [int]. CPU 并行线程数，-1 表示使用全部 CPU。
+'GCN_device': ['GPU', 'CPU']. GCN 训练设备。
 '''
 if __name__ == '__main__':
     freeze_support()

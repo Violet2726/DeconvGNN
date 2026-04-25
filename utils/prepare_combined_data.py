@@ -1,6 +1,10 @@
+# -*- coding: utf-8 -*-
 """
-整合 Visium 空间数据与 Allen Brain 单细胞数据，为 STdGCN 准备训练数据。
-输入数据位于 data/ 目录下，输出至 combined/ 子目录。
+整合 Visium 空间数据与 Allen Brain 单细胞参考数据。
+
+该脚本把两个来源的数据裁剪到共同基因集合，并写入每个 Visium 数据集的
+`combined/` 目录。训练脚本只需要指向该目录，就能同时读取单细胞表达、
+单细胞标签、空间表达和坐标。
 """
 import pandas as pd
 import numpy as np
@@ -16,12 +20,21 @@ DATASETS = [
 ]
 
 def process_dataset(dataset_name):
+    """
+    处理单个 Visium 数据集并生成 STdGCN 标准输入目录。
+
+    参数:
+        dataset_name: `data/` 下的 Visium 数据集目录名。
+
+    返回:
+        None: 结果直接写入 `data/<dataset_name>/combined/`。
+    """
     # ============================================================
     # 1. 配置路径
     # ============================================================
     st_source = dataset_name
     
-    # 配置输入与输出目录
+    # 单细胞参考数据固定使用 Allen Brain，空间数据按命令行传入的数据集切换。
     sc_dir = "data/ref_mouse_cortex_allen"  
     st_dir = f"data/{st_source}"
     output_dir = f"data/{st_source}/combined"
@@ -73,7 +86,7 @@ def process_dataset(dataset_name):
     st_data_path = os.path.join(st_dir, "ST_data.tsv")
     st_coords_path = os.path.join(st_dir, "coordinates.csv")
 
-    # 如果 TSV 不存在，尝试从 h5ad 加载 (处理旧数据格式情况)
+    # 如果 TSV 不存在，尝试从 h5ad 加载，以兼容早期只保存 h5ad 的数据目录。
     if not os.path.exists(st_data_path):
         print("  [WARN] 未找到 ST_data.tsv，尝试搜索 h5ad 文件...")
         h5ad_path = None
@@ -88,13 +101,13 @@ def process_dataset(dataset_name):
             st_adata = sc.read_h5ad(h5ad_path)
             st_adata.var_names_make_unique()
             
-            # 提取并保存 TSV，方便后续加载
+            # 提取表达矩阵为 DataFrame，后续统一按共同基因裁剪。
             if hasattr(st_adata.X, 'toarray'):
                 st_data = pd.DataFrame(st_adata.X.toarray(), index=st_adata.obs_names, columns=st_adata.var_names)
             else:
                 st_data = pd.DataFrame(st_adata.X, index=st_adata.obs_names, columns=st_adata.var_names)
             
-            # 提取坐标
+            # 提取坐标，要求行索引与空间表达矩阵一致。
             st_coords = pd.DataFrame(st_adata.obsm['spatial'], index=st_adata.obs_names, columns=['x', 'y'])
         else:
             print(f"[ERROR] 无法找到空间数据。请确保 data/{st_source} 下包含 ST_data.tsv 或 .h5ad")
@@ -121,7 +134,8 @@ def process_dataset(dataset_name):
     print(f"  空间基因:   {len(st_genes)}")
     print(f"  ✓ 共同基因: {len(common_genes)}")
     
-    # 自动大小写修复逻辑
+    # 自动大小写修复逻辑：如果直接求交得到的共同基因太少，
+    # 说明两个数据源可能使用了不同大小写命名（如 mouse/human 风格差异）。
     if len(common_genes) < 500:
         print("\n  ⚠️ 警告: 共同基因太少，尝试忽略大小写匹配...")
         sc_upper = {g.upper(): g for g in sc_data.columns}
@@ -131,11 +145,11 @@ def process_dataset(dataset_name):
         if len(upper_common) > 500:
             print(f"  ✓ 忽略大小写后找到 {len(upper_common)} 个共同基因，正在修复...")
             
-            # 映射回原始列名 (以单细胞为准)
+            # 映射回原始列名，以单细胞参考数据的列名作为最终标准。
             sc_keep_cols = [sc_upper[g] for g in upper_common]
             st_rename_map = {st_upper[g]: sc_upper[g] for g in upper_common}
             
-            # 重命名空间数据的列以匹配单细胞
+            # 重命名空间数据列，使两个矩阵拥有完全一致的基因顺序和名称。
             st_keep_cols = []
             st_final_rename = {}
             for g_up in upper_common:
@@ -165,19 +179,19 @@ def process_dataset(dataset_name):
     print("[Step 4] 保存到 combined 目录")
     print("-" * 60)
     
-    # 保存 sc_data.tsv
+    # 保存 sc_data.tsv：单细胞表达矩阵。
     print("  保存 sc_data.tsv...")
     sc_data.to_csv(os.path.join(output_dir, "sc_data.tsv"), sep='\t')
     
-    # 保存 sc_label.tsv
+    # 保存 sc_label.tsv：单细胞标签，保持原始细胞顺序。
     print("  保存 sc_label.tsv...")
     sc_label.to_csv(os.path.join(output_dir, "sc_label.tsv"), sep='\t', index=False)
     
-    # 保存 ST_data.tsv
+    # 保存 ST_data.tsv：空间表达矩阵，已按共同基因裁剪。
     print("  保存 ST_data.tsv...")
     st_data.to_csv(os.path.join(output_dir, "ST_data.tsv"), sep='\t')
     
-    # 保存 coordinates.csv
+    # 保存 coordinates.csv：空间坐标，供可视化和空间邻接图使用。
     print("  保存 coordinates.csv...")
     st_coords.to_csv(os.path.join(output_dir, "coordinates.csv"))
     

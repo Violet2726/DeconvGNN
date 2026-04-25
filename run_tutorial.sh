@@ -3,7 +3,7 @@ echo "[INFO] =========================================="
 echo "[INFO] 启动 STdGCN 演示 (Linux)"
 echo "[INFO] =========================================="
 
-# 检查 Python
+# 启动前先确认当前 shell 可以找到 Python，避免后续训练脚本报出难以定位的导入错误。
 if ! command -v python &> /dev/null; then
     echo "[ERROR] 找不到 python 命令，请确保已安装 Python 并激活了环境。"
     exit 1

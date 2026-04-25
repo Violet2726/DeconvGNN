@@ -13,3 +13,6 @@ file
 .npm-cache
 node_modules
 test-results
+.history
+tmp
+.vscode

@@ -1,7 +1,11 @@
+# -*- coding: utf-8 -*-
 """
-STdGCN 邻接矩阵构建模块
-提供构建跨域（Inter-domain）和域内（Intra-domain）邻接矩阵的各种方法，
-包括基于表达量的 KNN/MNN 建图和基于空间距离的建图。
+STdGCN 邻接矩阵构建模块。
+
+该模块负责把预处理后的表达特征和空间坐标转换为图结构。STdGCN 使用
+两类图：表达相似图用于连接真实斑点与伪斑点，空间邻近图用于刻画真实
+空间斑点的物理邻接关系。所有函数均返回与输入顺序对齐的方阵，便于后续
+拼接成统一大图。
 """
 import torch
 import numpy as np
@@ -22,7 +26,17 @@ def find_mutual_nn(data1,
                    k2, 
                   ):
     """
-    计算两组数据之间的互最近邻 (Mutual Nearest Neighbors, MNN)。
+    计算两组数据之间的互最近邻（Mutual Nearest Neighbors, MNN）。
+
+    参数:
+        data1: 第一组样本矩阵。
+        data2: 第二组样本矩阵。
+        dist_method: 距离度量名称；`cosine` 会走相似度分支，其余使用 KDTree。
+        k1: 对 data1 查询 data2 时保留的邻居数。
+        k2: 对 data2 查询 data1 时保留的邻居数。
+
+    返回:
+        list: 每个元素为 `[data1_index, data2_index]` 的互最近邻配对。
     """
     if dist_method == 'cosine':
         cos_sim1 = cosine_similarity(data1, data2)
@@ -33,6 +47,8 @@ def find_mutual_nn(data1,
         dist = DistanceMetric.get_metric(dist_method)
         k_index_1 = KDTree(data1, metric=dist).query(data2, k=k2, return_distance=False)
         k_index_2 = KDTree(data2, metric=dist).query(data1, k=k1, return_distance=False)
+    # 只有当两个方向都把对方视为近邻时才认为配对可靠，
+    # 这可以降低批次差异或噪声导致的单向误连接。
     mutual_1 = []
     mutual_2 = []
     mutual = []
@@ -52,7 +68,16 @@ def inter_adj(ST_integration,
               corr_dist_neighbors=20, 
              ):
     """
-    构建跨域邻接矩阵 (真实斑点与伪斑点之间)。
+    构建跨域邻接矩阵，即真实空间斑点与伪斑点之间的连接。
+
+    参数:
+        ST_integration: `data_integration` 输出表，需包含 `ST_type` 和降维特征列。
+        find_neighbor_method: `KNN` 或 `MNN`。
+        dist_method: 表达空间中的距离度量。
+        corr_dist_neighbors: 每个节点参与近邻搜索的邻居数。
+
+    返回:
+        DataFrame: 真实斑点与伪斑点共同节点空间中的对称邻接矩阵。
     """
     
     if find_neighbor_method == 'KNN':
@@ -62,6 +87,7 @@ def inter_adj(ST_integration,
         data2 = pseudo.iloc[:, 3:]
         real_num = real.shape[0]
         pseudo_num = pseudo.shape[0]
+        # KNN 分支：每个真实斑点连接到表达空间中最接近的若干伪斑点。
         if dist_method == 'cosine':
             cos_sim = cosine_similarity(data1, data2)
             k_index = torch.topk(torch.tensor(cos_sim), k=corr_dist_neighbors, dim=1)[1]
@@ -80,6 +106,7 @@ def inter_adj(ST_integration,
         pseudo = ST_integration[ST_integration['ST_type'] == 'pseudo']
         data1 = real.iloc[:, 3:]
         data2 = pseudo.iloc[:, 3:]
+        # MNN 分支更保守，要求真实斑点和伪斑点互相出现在近邻集合中。
         mut = find_mutual_nn(data2, data1, dist_method=dist_method, k1=corr_dist_neighbors, k2=corr_dist_neighbors)
         mut = pd.DataFrame(mut, columns=['pseudo', 'real'])
         real_num = real.shape[0]
@@ -100,7 +127,16 @@ def intra_dist_adj(ST_exp,
                    space_dist_threshold=None
                   ):
     """
-    基于空间坐标构建域内空间邻接矩阵。
+    基于空间坐标构建真实斑点的域内空间邻接矩阵。
+
+    参数:
+        ST_exp: 带有 `obs['coor_X']` 和 `obs['coor_Y']` 的 AnnData。
+        link_method: `hard` 表示二值连接，`soft` 表示距离倒数加权。
+        space_dist_neighbors: 每个斑点参与空间近邻搜索的邻居数。
+        space_dist_threshold: 可选距离阈值，超过阈值的近邻会被忽略。
+
+    返回:
+        DataFrame: 与真实斑点顺序对齐的空间邻接矩阵。
     """
     
     knn = NearestNeighbors(n_neighbors=space_dist_neighbors, metric='minkowski')
@@ -109,6 +145,7 @@ def intra_dist_adj(ST_exp,
     dist, ind = knn.kneighbors()
     
     if link_method == 'hard':
+        # hard 连接只记录是否相邻，适合不希望距离大小影响消息强度的实验。
         A_space = np.zeros((ST_exp.shape[0], ST_exp.shape[0]), dtype=float)
         for i in range(ind.shape[0]):
             for j in range(ind.shape[1]):
@@ -121,6 +158,7 @@ def intra_dist_adj(ST_exp,
                     A_space[ind[i,j], i] = 1
         A_space = pd.DataFrame(A_space, index=ST_exp.obs.index.values, columns=ST_exp.obs.index.values)
     else:
+        # soft 连接用距离倒数表示边权，使近距离斑点在空间图中贡献更大。
         A_space = np.zeros((ST_exp.shape[0], ST_exp.shape[0]), dtype=float)
         for i in range(ind.shape[0]):
             for j in range(ind.shape[1]):
@@ -145,11 +183,23 @@ def intra_exp_adj(adata,
                   corr_dist_neighbors=10, 
                   ):
     """
-    基于基因表达构建域内表达邻接矩阵。
+    基于基因表达构建单一域内部的表达邻接矩阵。
+
+    参数:
+        adata: 真实斑点或伪斑点 AnnData。
+        find_neighbor_method: `KNN` 或 `MNN`。
+        dist_method: 表达空间中的距离度量。
+        PCA_dimensionality_reduction: 是否先做 PCA 再计算距离。
+        dim: PCA 维度。
+        corr_dist_neighbors: 近邻数量。
+
+    返回:
+        DataFrame: 与输入 AnnData 观测顺序一致的表达邻接矩阵。
     """
         
     ST_exp = adata.copy()
     
+    # 建图前统一缩放表达量，避免高表达基因主导距离计算。
     sc.pp.scale(ST_exp, max_value=None, zero_center=True)
     if PCA_dimensionality_reduction == True:
         sc.tl.pca(ST_exp, n_comps=dim, svd_solver='arpack', random_state=None)
@@ -210,7 +260,16 @@ def intra_exp_adj(adata,
 
 def A_intra_transfer(data, data_type, real_num, pseudo_num):
     """
-    将单独的实测数据或伪数据邻接矩阵，扩充到整合后的完整图结构中。
+    将域内邻接矩阵扩展到真实斑点与伪斑点共同组成的大图中。
+
+    参数:
+        data: 单一域内部邻接矩阵。
+        data_type: `real` 或 `pseudo`，决定填入大图的左上或右下块。
+        real_num: 真实斑点数量。
+        pseudo_num: 伪斑点数量。
+
+    返回:
+        ndarray: 大图尺寸的块对角邻接矩阵。
     """
     
     adj = np.zeros((real_num+pseudo_num, real_num+pseudo_num), dtype=float)
@@ -225,7 +284,14 @@ def A_intra_transfer(data, data_type, real_num, pseudo_num):
 
 def adj_normalize(mx, symmetry=True):
     """
-    对邻接矩阵进行归一化处理。
+    对邻接矩阵进行度归一化。
+
+    参数:
+        mx: 输入邻接矩阵。
+        symmetry: `True` 使用 `D^-1/2 A D^-1/2`，否则使用 `D^-1 A`。
+
+    返回:
+        matrix: 归一化后的稠密矩阵。
     """
     
     mx = sp.csr_matrix(mx)

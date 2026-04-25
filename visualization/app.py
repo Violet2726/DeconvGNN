@@ -1,6 +1,10 @@
+# -*- coding: utf-8 -*-
 """
 DeconvGNN-Vis 可视化系统入口。
-负责构建 Streamlit 界面，处理数据集管理与图表交互。
+
+该模块负责构建 Streamlit 页面、管理本地/云端数据集、调度数据加载缓存，
+以及渲染多种空间反卷积图表。重计算成本较高的图表与数据读取逻辑均放在
+工具模块中，本文件主要承担 UI 状态编排职责。
 """
 
 import streamlit as st
@@ -16,7 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Optional, Any
 
 
-# 跨环境导入兼容（本地与 Streamlit Cloud）
+# 跨环境导入兼容：本地以包路径运行，Streamlit Cloud 或直接执行时回退相对导入。
 try:
     import visualization.styles as styles
     import visualization.data_loader as data_loader
@@ -26,7 +30,7 @@ except ImportError:
     import data_loader
     import viz_utils as utils
 
-# 页面全局配置
+# 页面全局配置必须在创建任何 Streamlit 组件前执行。
 st.set_page_config(
     page_title="DeconvGNN-Vis",
     page_icon="🧬",
@@ -35,7 +39,7 @@ st.set_page_config(
 )
 
 def _get_env_int(key: str, default: int) -> int:
-    """读取环境变量并转换为正整数，失败则回退默认值。"""
+    """读取环境变量并转换为正整数，失败或非法时回退默认值。"""
     try:
         value = int(os.getenv(key, default))
         return value if value > 0 else default
@@ -60,13 +64,18 @@ MAX_PERF_RECORDS = _get_env_int("DECONV_VIS_MAX_PERF_RECORDS", 200)
 SHOW_PERF_MONITOR_TAB = False
 
 def normalize_dataset_name(name: str) -> str:
-    """规范化数据集名称以适配展示与缓存键。"""
+    """
+    规范化数据集名称以适配展示与缓存键。
+
+    只保留中英文、数字、下划线、连字符和空格，避免用户输入路径分隔符
+    或特殊字符导致 session state key 不稳定。
+    """
     cleaned = re.sub(r"[^\w\u4e00-\u9fff\- ]+", "_", name).strip()
     cleaned = cleaned[:DATASET_NAME_MAX_LEN]
     return cleaned if cleaned else "dataset"
 
 def ensure_unique_dataset_name(name: str, existing: Dict[str, str]) -> str:
-    """确保数据集名称在现有列表中唯一。"""
+    """确保数据集名称在现有列表中唯一，重复时追加递增后缀。"""
     if name not in existing:
         return name
     counter = 1
@@ -75,14 +84,19 @@ def ensure_unique_dataset_name(name: str, existing: Dict[str, str]) -> str:
     return f"{name}_{counter}"
 
 def render_messages(errors: List[str], warnings: List[str]) -> None:
-    """统一渲染错误与警告提示。"""
+    """统一渲染错误与警告提示，保持所有数据入口的反馈样式一致。"""
     for err in errors:
         st.error(f"❌ {err}")
     for warn in warnings:
         st.warning(f"⚠️ {warn}")
 
 def _init_perf_state() -> None:
-    """初始化性能监控相关的会话状态。"""
+    """
+    初始化性能监控和缓存预热相关的会话状态。
+
+    Streamlit 每次交互都会重新执行脚本，因此所有跨 rerun 的 UI 状态都必须
+    存放在 `st.session_state` 中。
+    """
     if "perf_metrics" not in st.session_state:
         st.session_state.perf_metrics = []
     if "perf_monitor_enabled" not in st.session_state:
@@ -111,7 +125,7 @@ def _init_perf_state() -> None:
         st.session_state.mem_snapshot = None
 
 def record_metric(label: str, duration_ms: float, extra: Optional[Dict[str, Any]] = None) -> None:
-    """记录一次性能指标到会话状态。"""
+    """记录一次性能指标到会话状态，供隐藏的性能监控 Tab 分析。"""
     if not st.session_state.get("perf_monitor_enabled"):
         return
     item = {
@@ -127,7 +141,12 @@ def record_metric(label: str, duration_ms: float, extra: Optional[Dict[str, Any]
         st.session_state.perf_metrics = st.session_state.perf_metrics[-MAX_PERF_RECORDS:]
 
 def run_timed(label: str, fn, extra: Optional[Dict[str, Any]] = None):
-    """计时执行回调并记录性能指标。"""
+    """
+    计时执行回调并记录性能指标。
+
+    该包装器用于数据加载、背景图生成和 Plotly 渲染等高成本步骤，
+    方便后续定位页面卡顿来源。
+    """
     start = time.perf_counter()
     result = fn()
     duration = (time.perf_counter() - start) * 1000
@@ -139,26 +158,29 @@ def get_perf_mode() -> str:
     return st.session_state.get("perf_mode", "标准")
 
 
-# 注入自定义样式
+# 注入自定义样式。样式表较大，集中放在 styles.py 中维护。
 styles.inject_custom_css()
 
 
 
 def main():
     """
-    应用入口，负责整体流程与界面渲染。
+    Streamlit 应用入口，负责整体流程与界面渲染。
+
+    主流程分为三段：侧边栏管理数据源、加载/校验当前数据集、渲染各图表
+    Tab。所有昂贵计算都尽量通过 session_state 或工具函数缓存。
     """
-    # 初始化性能监控与缓存容器
+    # 初始化性能监控与图表缓存容器。figure_cache 用于避免用户切换 Tab 时重复渲染。
     _init_perf_state()
     if "figure_cache" not in st.session_state:
         st.session_state.figure_cache = {}
     
-    # 侧边栏：数据源管理
+    # 侧边栏：数据源管理。数据源可以是本地结果目录，也可以是云端上传的内存数据。
     with st.sidebar:
         st.markdown('<p class="main-header">DeconvGNN-Vis<br>空间转录组反卷积<br>可视化系统</p>', unsafe_allow_html=True)
         st.divider()
         
-        # 系统重置
+        # 系统重置：清空 Streamlit 数据缓存并重新运行脚本，适合用户更新了结果文件后手动刷新。
         if st.button("⚡ 重置系统", type="secondary", use_container_width=True, help="清除所有缓存并重新加载应用"):
             st.cache_data.clear()
             st.rerun()
@@ -167,14 +189,14 @@ def main():
             `predict_result.csv`  
             `coordinates.csv`""")
         
-        # 初始化会话数据源
+        # 初始化会话数据源。默认 DATA_DIRS 为空，用户可通过导入操作逐步添加。
         if 'data_sources' not in st.session_state:
             st.session_state.data_sources = data_loader.DATA_DIRS.copy()
         
         if 'show_import' not in st.session_state:
             st.session_state.show_import = False
             
-        # 数据集列表与选择逻辑
+        # 数据集列表与选择逻辑。切换数据集时触发后台缓存预热，减少首个图表等待时间。
         options = list(st.session_state.data_sources.keys())
         
         # 侧边栏：空状态处理
@@ -183,8 +205,7 @@ def main():
             selected_dataset_name = None
             result_dir = None
         else:
-            # 侧边栏：数据集选择器
-            # 数据集下拉选择
+            # 侧边栏数据集选择器。
             selected_dataset_name = st.selectbox(
                 "选择当前数据集",
                 options=options,
@@ -203,7 +224,7 @@ def main():
                     st.session_state.prewarm_notified = False
 
 
-        # 数据集操作栏（移除与新增）
+        # 数据集操作栏：支持移除当前数据集或导入新的结果目录/上传文件。
         col_del, col_add = st.columns(2)
         
         with col_del:
@@ -213,7 +234,7 @@ def main():
                         if 'uploaded_data' in st.session_state:
                             del st.session_state.uploaded_data
                     del st.session_state.data_sources[selected_dataset_name]
-                    # 重置选择器状态
+                    # 重置选择器状态，避免 selectbox 指向已被删除的 key。
                     if "dataset_selector" in st.session_state:
                         del st.session_state.dataset_selector
                     st.rerun()
@@ -225,7 +246,12 @@ def main():
             
         @st.dialog("重命名数据集")
         def rename_dialog(default_name, valid_path):
-            """展示重命名对话框并提交数据集导入。"""
+            """
+            展示重命名对话框并提交数据集导入。
+
+            本地目录导入前已完成 `predict_result.csv` 校验，这里只负责名称规范化
+            和写入 session state。
+            """
             new_name = st.text_input("显示名称", value=default_name)
             if st.button("确认添加", type="primary", use_container_width=True):
                 if new_name.strip():
@@ -244,17 +270,17 @@ def main():
             is_cloud = utils.is_cloud_environment()
             
             if is_cloud:
-                # 云端：导入面板开关
+                # 云端环境不能打开本地文件夹，因此展示上传面板开关。
                 btn_label = "✖️ 取消" if st.session_state.show_import else "📂 导入"
                 if st.button(btn_label, type="secondary", use_container_width=True):
                     st.session_state.show_import = not st.session_state.show_import
                     st.rerun()
             else:
-                # 本地：打开目录选择
+                # 本地环境使用系统文件夹选择器，交互体验比手输路径更稳定。
                 if st.button("📂 导入", type="secondary", use_container_width=True):
                     folder = utils.open_folder_dialog()
                     if folder:
-                        # 立即校验路径
+                        # 立即校验路径，允许用户选择 results 目录或其父级数据集目录。
                         valid_path = None
                         if os.path.exists(os.path.join(folder, "predict_result.csv")):
                             valid_path = folder
@@ -268,10 +294,9 @@ def main():
                         else:
                             st.toast("❌ 目录无效：未找到 predict_result.csv", icon="🚫")
 
-        # 触发重命名弹窗（仅本地）
+        # 触发重命名弹窗（仅本地）。使用弹窗让用户在导入前确认展示名。
         if st.session_state.get('rename_dialog_open') and st.session_state.get('temp_import_path'):
-            # 生成导入后的默认名称
-            # 智能命名：若选中 results 目录则取父目录名
+            # 生成导入后的默认名称：若选中 results 目录，则取父目录名作为数据集名。
             raw_basename = os.path.basename(st.session_state.temp_import_path)
             if raw_basename.lower() == "results":
                 parent_name = os.path.basename(os.path.dirname(st.session_state.temp_import_path))
@@ -281,7 +306,7 @@ def main():
             
             rename_dialog(normalize_dataset_name(base_name), st.session_state.temp_import_path)
 
-        # 云端导入逻辑（仅 Cloud 且开启导入）
+        # 云端导入逻辑：上传 CSV 后直接解析到内存，不写入服务器磁盘。
         if is_cloud and st.session_state.show_import:
              with st.container():
                 
@@ -304,7 +329,7 @@ def main():
                         return
                     file_names = [f.name.lower() for f in uploaded_files]
                     if any("predict" in name for name in file_names):
-                        # 自动生成默认名称
+                        # 自动生成默认名称，避免用户每次上传都必须输入。
                         counter = 1
                         while f"dataset_{counter}" in st.session_state.data_sources:
                             counter += 1
@@ -346,18 +371,18 @@ def main():
                         st.warning("⚠️ 必需文件缺失：请务必上传 `predict_result.csv`")
 
 
-    # 主界面展示区
+    # 主界面展示区。
     
-    # 无数据场景：展示欢迎页
+    # 无数据场景：展示欢迎页，并引导用户从侧边栏导入结果目录。
     if result_dir is None:
         # 侧边栏指引
         st.markdown('<div class="sidebar-hint"><i class="fa-solid fa-angles-left" style="font-size:3rem; color:#00f260; filter: drop-shadow(0 0 10px #00f260);"></i></div>', unsafe_allow_html=True)
         
-        # 首页视觉渲染（基于 Assets）
+        # 首页视觉渲染（基于 Assets）。banner 缺失时页面仍可降级展示。
         banner_base64 = utils.get_base64_image_cached(str(utils.BANNER_PATH))
         banner_src = f"data:image/png;base64,{banner_base64}" if banner_base64 else ""
  
-        # 用 components.html 渲染完整页面
+        # 用 components.html 渲染完整页面，便于复用复杂 HTML/CSS 动效。
         components.html(styles.get_landing_page_html(banner_src), height=1500, scrolling=True)
         return
     
@@ -374,7 +399,7 @@ def main():
             st.toast("✅ 后台预热完成", icon="✅")
 
     if st.session_state.prewarm_pending:
-        # 预热缓存逻辑
+        # 预热缓存逻辑。手动预热在当前线程执行，自动预热放到后台线程。
         if result_dir and result_dir != "__UPLOADED__":
             if st.session_state.prewarm_mode == "manual":
                 st.session_state.prewarm_pending = False
@@ -420,9 +445,9 @@ def main():
             st.session_state.prewarm_pending = False
             st.toast("⚠️ 仅本地数据支持预热缓存", icon="⚠️")
 
-    # 有效数据场景：执行数据加载
+    # 有效数据场景：执行数据加载。上传数据从 session state 恢复，本地数据从文件系统读取。
     if result_dir == "__UPLOADED__":
-        # 云端加载：从 Session State 恢复
+        # 云端加载：从 Session State 恢复，并再次校验以复用统一数据契约。
         if 'uploaded_data_cache' in st.session_state:
             predict_df = st.session_state.uploaded_data_cache['predict_df']
             coords = st.session_state.uploaded_data_cache['coords']
@@ -437,7 +462,7 @@ def main():
             st.error("❌ 会话过期：上传的数据已失效，请重新上传文件。")
             return
     else:
-        # 本地加载：从文件系统读取
+        # 本地加载：从文件系统读取，底层会优先命中 Pickle/Streamlit 缓存。
         with st.spinner("正在加载数据集..."):
             predict_df, coords, errors, warnings = run_timed(
                 "data_load_local",
@@ -459,7 +484,7 @@ def main():
         st.info("请确保输出目录完整，或尝试重新导入数据。")
         return
     
-    # 指标概览
+    # 指标概览：帮助用户快速确认当前数据集的规模和主导细胞类型。
     if predict_df is not None:
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -473,13 +498,13 @@ def main():
         
         st.divider()
         
-        # 图表视图
+        # 图表视图。
         
-        # 初始化图表缓存（切换 Tab 不重算）
+        # 初始化图表缓存（切换 Tab 不重算）。
         if 'figure_cache' not in st.session_state:
             st.session_state.figure_cache = {}
         
-        # 当前数据集缓存前缀
+        # 当前数据集缓存前缀，避免多个数据集的图表对象互相覆盖。
         cache_prefix = f"{selected_dataset_name}_"
         
         perf_mode = get_perf_mode()
@@ -538,7 +563,7 @@ def main():
                 plot_coords = coords_for_plot
                 sampled = False
                 if use_lod:
-                    # 高性能模式下执行抽样
+                    # 高性能模式下执行抽样：仅减少交互散点层点数，背景饼图仍使用全量数据。
                     plot_predict_df, plot_coords, sampled = utils.apply_lod_sampling(predict_df, coords_for_plot)
 
                 tab1_cache_key = f"{cache_prefix}tab1_{hover_count_tab1}_{'lod' if sampled else 'full'}"
@@ -586,8 +611,12 @@ def main():
                 plot_coords = coords_for_plot
                 sampled = False
                 if use_lod:
-                    # 高性能模式下执行抽样
-                    plot_predict_df, plot_coords, sampled = utils.apply_lod_sampling(predict_df, coords_for_plot)
+                    # “优势亚群分布”始终使用全量点位，避免高性能模式下仅显示抽样散点。
+                    plot_predict_df, plot_coords, sampled = utils.apply_lod_sampling(
+                        predict_df,
+                        coords_for_plot,
+                        force_full=True
+                    )
 
                 tab2_cache_key = f"{cache_prefix}tab2_{hover_count}_{'lod' if sampled else 'full'}"
                 if tab2_cache_key not in st.session_state.figure_cache:
